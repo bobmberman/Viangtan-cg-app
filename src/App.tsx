@@ -1,256 +1,229 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
 
-// 🔴 1. นำ URL และ Key จาก Supabase มาใส่ตรงนี้ครับ
+// --- 🔗 เชื่อมต่อกับ Supabase ---
 const SUPABASE_URL = 'https://bietketdljzltumxfkgc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_o5Ofjv8ask6C1dk-Qe1ihw_g4mqqmUT';
-
-// สร้างตัวเชื่อมต่อฐานข้อมูล
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 export default function App() {
-  // 🟢 2. สร้าง State สำหรับเก็บข้อมูลในฟอร์ม
+  // --- 📦 State สำหรับเก็บข้อมูลที่ CG กรอก ---
   const [patientName, setPatientName] = useState('');
-  const [tasks, setTasks] = useState({
-    task1: false, task2: false, task3: false, task4: false
-  });
-  const [complication, setComplication] = useState('ปกติ');
-  const [compDetail, setCompDetail] = useState('');
-  const [photo, setPhoto] = useState<File | null>(null);
+  const [activities, setActivities] = useState<string[]>([]);
+  const [complicationStatus, setComplicationStatus] = useState('ปกติ');
+  const [complicationDetail, setComplicationDetail] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // 🟢 3. ฟังก์ชันจัดการเมื่อมีการกดปุ่มส่งข้อมูล
+  // --- ⚙️ ฟังก์ชันจัดการเมื่อติ๊กเลือกกิจกรรม ---
+  const handleActivityChange = (activity: string) => {
+    setActivities((prev) =>
+      prev.includes(activity)
+        ? prev.filter((a) => a !== activity)
+        : [...prev, activity]
+    );
+  };
+
+  // --- 🚀 ฟังก์ชันบันทึกและส่งข้อมูล ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!photo) {
-      Swal.fire('แจ้งเตือน', 'กรุณาถ่ายภาพหลักฐานการเยี่ยมด้วยครับ', 'warning');
+    // เช็คว่ากรอกข้อมูลครบไหมก่อนส่ง
+    if (!patientName || activities.length === 0 || !imageFile) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ข้อมูลไม่ครบถ้วน',
+        text: 'กรุณากรอกชื่อผู้สูงอายุ เลือกกิจกรรมอย่างน้อย 1 อย่าง และแนบรูปถ่ายครับ',
+        confirmButtonColor: '#3b82f6',
+      });
       return;
     }
 
-    Swal.fire({
-      title: 'กำลังอัปโหลดข้อมูล...',
-      html: 'กรุณารอสักครู่ ระบบกำลังจัดเก็บรูปภาพและข้อมูล',
-      allowOutsideClick: false,
-      showConfirmButton: false,
-      didOpen: () => { Swal.showLoading(); }
-    });
+    setLoading(true); // เริ่มปุ่มหมุนๆ
 
     try {
-      // --- ขั้นตอน A: อัปโหลดรูปลง Storage (ถัง cg-images) ---
-      const fileName = `${Date.now()}_${photo.name}`;
+      // 1. อัปโหลดรูปภาพขึ้น Supabase Storage (ถัง cg-images)
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage
         .from('cg-images')
-        .upload(fileName, photo);
+        .upload(fileName, imageFile);
 
       if (uploadError) throw uploadError;
 
-      // ดึง URL ของรูปภาพที่อัปโหลดเสร็จแล้ว
+      // ดึงลิงก์รูปภาพที่อัปโหลดเสร็จแล้ว
       const { data: publicUrlData } = supabase.storage
         .from('cg-images')
         .getPublicUrl(fileName);
       const imageUrl = publicUrlData.publicUrl;
 
-      // --- ขั้นตอน B: เตรียมข้อมูลกิจกรรมเป็นข้อความ ---
-      const activityList = [];
-      if (tasks.task1) activityList.push('วัดสัญญาณชีพ');
-      if (tasks.task2) activityList.push('ช่วยเหลือการกิน');
-      if (tasks.task3) activityList.push('ช่วยเหลือการขับถ่าย/อาบน้ำ');
-      if (tasks.task4) activityList.push('ทำกายภาพบำบัด');
-      const activitiesString = activityList.join(', ');
-
-      // --- ขั้นตอน C: บันทึกข้อมูลลงตาราง cg_reports ---
-      const { error: insertError } = await supabase
-        .from('cg_reports')
-        .insert([{
+      // 2. บันทึกข้อมูลข้อความลงตาราง cg_reports
+      const { error: insertError } = await supabase.from('cg_reports').insert([
+        {
           patient_name: patientName,
-          activities: activitiesString,
-          complication_status: complication,
-          complication_detail: complication === 'ผิดปกติ' ? compDetail : '-',
-          image_url: imageUrl
-        }]);
+          activities: activities.join(', '),
+          complication_status: complicationStatus,
+          complication_detail: complicationStatus === 'ผิดปกติ' ? complicationDetail : '',
+          image_url: imageUrl,
+        },
+      ]);
 
       if (insertError) throw insertError;
 
-      // --- ขั้นตอน D: แจ้งเตือนสำเร็จและล้างฟอร์ม ---
-      Swal.fire({
+      // 3. แจ้งเตือนเมื่อสำเร็จแบบสวยๆ
+      await Swal.fire({
         icon: 'success',
         title: 'บันทึกสำเร็จ!',
-        text: 'ส่งรายงานการเยี่ยมเรียบร้อยแล้ว',
-        confirmButtonColor: '#27ae60'
+        text: 'ข้อมูลถูกส่งไปยัง CM เรียบร้อยแล้ว',
+        timer: 2000,
+        showConfirmButton: false,
       });
 
-      // ล้างข้อมูลหน้าจอเพื่อรอรับเคสใหม่
+      // 4. ล้างข้อมูลในฟอร์มให้ว่างเพื่อรอคีย์คนต่อไป
       setPatientName('');
-      setTasks({ task1: false, task2: false, task3: false, task4: false });
-      setComplication('ปกติ');
-      setCompDetail('');
-      setPhoto(null);
-      (document.getElementById('photoInput') as HTMLInputElement).value = '';
+      setActivities([]);
+      setComplicationStatus('ปกติ');
+      setComplicationDetail('');
+      setImageFile(null);
+      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
 
     } catch (error: any) {
-      console.error(error);
+      // แจ้งเตือนถ้ามี Error
       Swal.fire({
         icon: 'error',
-        title: 'เกิดข้อผิดพลาด!',
-        text: error.message || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่',
-        confirmButtonColor: '#e74c3c'
+        title: 'เกิดข้อผิดพลาด',
+        text: error.message || 'ไม่สามารถส่งข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
+        confirmButtonColor: '#ef4444',
       });
+    } finally {
+      setLoading(false); // หยุดหมุน
     }
   };
 
-  // 🟢 4. ส่วนแสดงผล (หน้าตาแอปพลิเคชัน)
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h2 style={styles.headerTitle}>📝 บันทึกการเยี่ยม (CG)</h2>
-        
-        <form onSubmit={handleSubmit}>
-          {/* ส่วนที่ 1: ชื่อผู้ป่วย */}
-          <label style={styles.label}>ผู้สูงอายุ / ผู้มีภาวะพึ่งพิง</label>
-          <select 
-            required 
-            style={styles.input} 
-            value={patientName} 
-            onChange={(e) => setPatientName(e.target.value)}
-          >
-            <option value="">-- เลือกรายชื่อ --</option>
-            <option value="คุณตา สมชาย ใจดี">คุณตา สมชาย ใจดี</option>
-            <option value="คุณยาย สมศรี รักสงบ">คุณยาย สมศรี รักสงบ</option>
-            <option value="คุณตา บุญมี แสงสว่าง">คุณตา บุญมี แสงสว่าง</option>
-            <option value="คุณยาย ทองดี มั่งคั่ง">คุณยาย ทองดี มั่งคั่ง</option>
-          </select>
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+      {/* การ์ดฟอร์มหลัก */}
+      <div className="card w-full max-w-lg bg-white shadow-xl border border-slate-200">
+        <div className="card-body p-6 sm:p-8">
+          <h2 className="card-title text-primary text-2xl mb-6 justify-center font-bold">
+            📝 บันทึกการเยี่ยม (CG)
+          </h2>
 
-          {/* ส่วนที่ 2: กิจกรรม */}
-          <label style={styles.label}>กิจกรรมที่ดูแลวันนี้ (เลือกได้มากกว่า 1)</label>
-          <div style={styles.boxGroup}>
-            <label style={styles.checkLabel}>
-              <input type="checkbox" style={styles.checkbox} checked={tasks.task1} onChange={(e) => setTasks({...tasks, task1: e.target.checked})} /> วัดสัญญาณชีพ
-            </label>
-            <label style={styles.checkLabel}>
-              <input type="checkbox" style={styles.checkbox} checked={tasks.task2} onChange={(e) => setTasks({...tasks, task2: e.target.checked})} /> ช่วยเหลือการกิน
-            </label>
-            <label style={styles.checkLabel}>
-              <input type="checkbox" style={styles.checkbox} checked={tasks.task3} onChange={(e) => setTasks({...tasks, task3: e.target.checked})} /> ช่วยเหลือการขับถ่าย/อาบน้ำ
-            </label>
-            <label style={styles.checkLabel}>
-              <input type="checkbox" style={styles.checkbox} checked={tasks.task4} onChange={(e) => setTasks({...tasks, task4: e.target.checked})} /> ทำกายภาพบำบัด
-            </label>
-          </div>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            
+            {/* --- 1. เลือกชื่อ --- */}
+            <div className="form-control w-full">
+              <label className="label">
+                <span className="label-text font-semibold text-base text-slate-700">ผู้สูงอายุ / ผู้มีภาวะพึ่งพิง</span>
+              </label>
+              <select
+                className="select select-bordered w-full bg-slate-50 text-base focus:border-primary"
+                value={patientName}
+                onChange={(e) => setPatientName(e.target.value)}
+                required
+              >
+                <option value="" disabled>-- เลือกรายชื่อ --</option>
+                <option value="คุณยาย ทองดี มั่งคั่ง">คุณยาย ทองดี มั่งคั่ง</option>
+                <option value="คุณตา บุญมี ศรีสุข">คุณตา บุญมี ศรีสุข</option>
+              </select>
+            </div>
 
-          {/* ส่วนที่ 3: ภาวะแทรกซ้อน */}
-          <label style={styles.label}>พบภาวะแทรกซ้อนหรือไม่?</label>
-          <div style={styles.boxGroup}>
-            <label style={styles.checkLabel}>
-              <input type="radio" name="comp" value="ปกติ" style={styles.checkbox} checked={complication === 'ปกติ'} onChange={() => setComplication('ปกติ')} /> 🟢 ปกติ / ไม่มีอาการ
-            </label>
-            <label style={styles.checkLabel}>
-              <input type="radio" name="comp" value="ผิดปกติ" style={styles.checkbox} checked={complication === 'ผิดปกติ'} onChange={() => setComplication('ผิดปกติ')} /> 🔴 ผิดปกติ / มีภาวะแทรกซ้อน
-            </label>
-          </div>
+            {/* --- 2. เลือกกิจกรรม --- */}
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text font-semibold text-base text-slate-700">กิจกรรมที่ดูแลวันนี้ (เลือกได้มากกว่า 1)</span>
+              </label>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                {['วัดสัญญาณชีพ', 'ช่วยเหลือการกิน', 'ช่วยเหลือการขับถ่าย/อาบน้ำ', 'ทำกายภาพบำบัด'].map((act) => (
+                  <label key={act} className="cursor-pointer label justify-start gap-4 hover:bg-slate-100 p-2 rounded-lg transition-colors">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-primary"
+                      checked={activities.includes(act)}
+                      onChange={() => handleActivityChange(act)}
+                    />
+                    <span className="label-text text-base">{act}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
 
-          {/* ซ่อน/แสดง ช่องกรอกอาการ */}
-          {complication === 'ผิดปกติ' && (
-            <div style={{ marginTop: '10px' }}>
-              <label style={styles.label}>ระบุอาการผิดปกติที่พบ:</label>
-              <input 
-                type="text" 
-                required 
-                placeholder="เช่น มีไข้สูง, แผลกดทับ" 
-                style={styles.input}
-                value={compDetail}
-                onChange={(e) => setCompDetail(e.target.value)}
+            {/* --- 3. ภาวะแทรกซ้อน --- */}
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text font-semibold text-base text-slate-700">พบภาวะแทรกซ้อนหรือไม่?</span>
+              </label>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                <label className="cursor-pointer label justify-start gap-4 hover:bg-slate-100 p-2 rounded-lg transition-colors">
+                  <input
+                    type="radio"
+                    name="complication"
+                    className="radio radio-success"
+                    checked={complicationStatus === 'ปกติ'}
+                    onChange={() => setComplicationStatus('ปกติ')}
+                  />
+                  <span className="label-text text-base font-medium text-success">🟢 ปกติ / ไม่มีอาการ</span>
+                </label>
+                <label className="cursor-pointer label justify-start gap-4 hover:bg-slate-100 p-2 rounded-lg transition-colors">
+                  <input
+                    type="radio"
+                    name="complication"
+                    className="radio radio-error"
+                    checked={complicationStatus === 'ผิดปกติ'}
+                    onChange={() => setComplicationStatus('ผิดปกติ')}
+                  />
+                  <span className="label-text text-base font-medium text-error">🔴 ผิดปกติ / มีภาวะแทรกซ้อน</span>
+                </label>
+              </div>
+            </div>
+
+            {/* --- 4. ระบุอาการ (โชว์เมื่อเลือกผิดปกติ) --- */}
+            {complicationStatus === 'ผิดปกติ' && (
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-semibold text-error text-base">ระบุอาการที่พบโดยละเอียด</span>
+                </label>
+                <textarea
+                  className="textarea textarea-bordered textarea-error w-full h-24 text-base bg-red-50 focus:bg-white"
+                  placeholder="เช่น มีไข้สูง 39 องศา, พบแผลกดทับบวมแดงบริเวณหลัง..."
+                  value={complicationDetail}
+                  onChange={(e) => setComplicationDetail(e.target.value)}
+                  required
+                ></textarea>
+              </div>
+            )}
+
+            {/* --- 5. อัปโหลดรูป --- */}
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text font-semibold text-base text-slate-700">อัปโหลดภาพถ่ายหลักฐาน</span>
+              </label>
+              <input
+                id="file-upload"
+                type="file"
+                accept="image/*"
+                className="file-input file-input-bordered file-input-primary w-full bg-slate-50"
+                onChange={(e) => setImageFile(e.target.files ? e.target.files[0] : null)}
+                required
               />
             </div>
-          )}
 
-          {/* ส่วนที่ 4: รูปภาพ */}
-          <label style={styles.label}>📷 ถ่ายภาพหลักฐาน</label>
-          <input 
-            id="photoInput"
-            type="file" 
-            accept="image/*" 
-            capture="environment" 
-            style={styles.input} 
-            onChange={(e) => setPhoto(e.target.files ? e.target.files[0] : null)}
-          />
+            {/* --- 6. ปุ่ม Submit --- */}
+            <div className="card-actions mt-8">
+              <button
+                type="submit"
+                className="btn btn-primary w-full text-lg h-14 shadow-lg shadow-blue-500/30"
+                disabled={loading}
+              >
+                {loading ? <span className="loading loading-spinner loading-md"></span> : '💾 บันทึกและส่งรายงาน'}
+              </button>
+            </div>
 
-          <button type="submit" style={styles.submitBtn}>
-            💾 บันทึกและส่งรายงาน
-          </button>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );
 }
-
-// 🎨 5. สไตล์ CSS ตกแต่งให้สวยงามและเหมาะกับมือถือ
-const styles = {
-  container: {
-    fontFamily: '"Sarabun", sans-serif',
-    backgroundColor: '#f4f7f6',
-    minHeight: '100vh',
-    padding: '20px',
-    display: 'flex',
-    justifyContent: 'center'
-  },
-  card: {
-    backgroundColor: 'white',
-    padding: '25px',
-    borderRadius: '16px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-    width: '100%',
-    maxWidth: '450px'
-  },
-  headerTitle: {
-    textAlign: 'center' as const,
-    color: '#2c3e50',
-    marginTop: 0,
-    marginBottom: '20px'
-  },
-  label: {
-    fontWeight: 'bold',
-    display: 'block',
-    marginTop: '15px',
-    marginBottom: '8px',
-    color: '#34495e'
-  },
-  input: {
-    width: '100%',
-    padding: '12px',
-    borderRadius: '8px',
-    border: '1px solid #ced4da',
-    boxSizing: 'border-box' as const,
-    fontSize: '16px'
-  },
-  boxGroup: {
-    backgroundColor: '#f8f9fa',
-    padding: '10px',
-    borderRadius: '8px',
-    border: '1px solid #e9ecef'
-  },
-  checkLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    padding: '8px 0',
-    fontSize: '16px',
-    cursor: 'pointer'
-  },
-  checkbox: {
-    transform: 'scale(1.4)',
-    marginRight: '12px'
-  },
-  submitBtn: {
-    backgroundColor: '#27ae60',
-    color: 'white',
-    border: 'none',
-    padding: '16px',
-    width: '100%',
-    borderRadius: '8px',
-    fontSize: '18px',
-    fontWeight: 'bold',
-    marginTop: '30px',
-    cursor: 'pointer',
-    boxShadow: '0 4px 6px rgba(39, 174, 96, 0.3)'
-  }
-};
