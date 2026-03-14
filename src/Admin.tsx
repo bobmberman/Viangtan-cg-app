@@ -25,8 +25,7 @@ export default function Admin() {
         title: 'ดึงข้อมูลไม่สำเร็จ',
         text: error.message,
         confirmButtonColor: '#3b82f6',
-        fontFamily: 'Kanit'
-      });
+       });
     } else {
       setReports(data || []);
     }
