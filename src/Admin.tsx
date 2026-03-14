@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
 
+// --- 🔗 เชื่อมต่อกับ Supabase (ใช้ค่าเดิมของคุณ Boem) ---
 const SUPABASE_URL = 'https://bietketdljzltumxfkgc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_o5Ofjv8ask6C1dk-Qe1ihw_g4mqqmUT';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -38,10 +39,11 @@ export default function Admin() {
 
   const handleDelete = async (id: string) => {
     const result = await Swal.fire({
-      title: 'ลบรายงานนี้?',
+      title: 'ต้องการลบรายงานนี้?',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#94a3b8',
       confirmButtonText: 'ยืนยัน',
       cancelButtonText: 'ยกเลิก'
     });
@@ -59,10 +61,10 @@ export default function Admin() {
   const todayCount = reports.filter(r => new Date(r.created_at).toDateString() === new Date().toDateString()).length;
 
   return (
-    <div className="flex h-screen w-screen bg-[#F4F7FE] font-kanit overflow-hidden">
+    <div className="flex min-h-screen bg-slate-50 font-kanit">
       
-      {/* --- Sidebar (Gradient ม่วง-น้ำเงิน) --- */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-[#4318FF] to-[#707EAE] text-white transition-transform duration-300 lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* Sidebar (ใช้ค่าเดิม) */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-gradient-to-b from-indigo-800 to-purple-900 text-white transition-transform duration-300 lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-8 border-b border-white/10 text-center">
             <h1 className="text-2xl font-black tracking-tighter italic">VIANGTAN</h1>
             <p className="text-[10px] opacity-60 tracking-[0.3em] uppercase">Smart City Dashboard</p>
@@ -82,102 +84,113 @@ export default function Admin() {
         </div>
       </aside>
 
-      {/* --- Main Area --- */}
-      <div className="flex-1 flex flex-col min-w-0 h-full">
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
         
-        {/* --- Header (ตามรูปที่คุณ Boem ส่งมาเป๊ะๆ) --- */}
-        <header className="p-6 flex justify-between items-center">
+        {/* Header (ใช้ค่าเดิม) */}
+        <header className="p-6 flex justify-between items-center sticky top-0 bg-slate-50 z-40 border-b border-slate-100">
           <div className="flex items-center gap-4">
-            {/* ปุ่มเมนูวงกลมสีขาว */}
-            <button 
-              className="w-12 h-12 flex items-center justify-center bg-white rounded-full shadow-sm lg:hidden border border-slate-100" 
-              onClick={() => setIsSidebarOpen(true)}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#4318FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            
-            {/* หัวข้อ 2 บรรทัด */}
-            <div>
-              <h1 className="text-2xl font-bold text-[#2B3674] leading-none">ภาพรวมระบบการเยี่ยม</h1>
-              <p className="text-[#707EAE] text-sm mt-1 font-medium">Executive Command Center</p>
-            </div>
+            <button className="lg:hidden btn btn-ghost btn-sm" onClick={() => setIsSidebarOpen(true)}>☰</button>
+            <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+              🏛️ <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">แผงควบคุมหลัก (CM)</span>
+            </h2>
           </div>
-
           <div className="text-right hidden sm:block bg-white px-6 py-2 rounded-2xl shadow-sm border border-slate-50">
-             <span className="text-[#4318FF] font-black text-2xl leading-none block">{time.toLocaleTimeString('th-TH')}</span>
-             <span className="text-[10px] text-[#707EAE] font-bold uppercase">{time.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+             <span className="text-indigo-600 font-black text-2xl leading-none block">{time.toLocaleTimeString('th-TH')}</span>
+             <span className="text-[10px] text-slate-400 font-bold uppercase">{time.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
           </div>
         </header>
 
-        {/* --- ส่วนเนื้อหา (เลื่อนขึ้นลงได้ภายใน) --- */}
-        <main className="flex-1 p-6 overflow-y-auto pt-0">
+        <main className="flex-1 p-6 overflow-y-auto pt-4">
           
-          {/* Stats Cards (ดีไซน์ใหม่ให้พรีเมียมขึ้น) */}
+          {/* --- 📊 ส่วน Stat Cards ที่ปรับปรุงใหม่ --- */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-[#4318FF] p-6 rounded-[2rem] text-white shadow-2xl shadow-[#4318ff]/30">
-               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest">ทั้งหมด</p>
-               <h3 className="text-4xl font-black mt-1">{total}</h3>
+            
+            {/* ทั้งหมด - ใช้ SVG Chart */}
+            <div className="bg-indigo-600 p-6 rounded-[2rem] text-white shadow-xl hover:shadow-2xl hover:scale-105 hover:-translate-y-2 transition-all duration-300 relative overflow-hidden group">
+               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest z-10 relative">เยี่ยมทั้งหมด</p>
+               <h3 className="text-4xl font-black mt-1 z-10 relative">{total}</h3>
+               {/* SVG Icon ที่พื้นหลัง  */}
+               <svg xmlns="http://www.w3.org/2000/svg" className="absolute -right-6 -bottom-6 w-36 h-36 opacity-10 group-hover:scale-110 transition-transform duration-500 z-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+               </svg>
             </div>
-            <div className="bg-[#FFB547] p-6 rounded-[2rem] text-white shadow-2xl shadow-[#ffb547]/30">
-               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest">รอตรวจสอบ</p>
-               <h3 className="text-4xl font-black mt-1">{abnormal}</h3>
+
+            {/* ผิดปกติ - ใช้ SVG Bell */}
+            <div className="bg-orange-500 p-6 rounded-[2rem] text-white shadow-xl hover:shadow-2xl hover:scale-105 hover:-translate-y-2 transition-all duration-300 relative overflow-hidden group">
+               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest z-10 relative">เคสรอตรวจสอบ</p>
+               <h3 className="text-4xl font-black mt-1 z-10 relative">{abnormal}</h3>
+               {/* SVG Icon ที่พื้นหลัง  */}
+               <svg xmlns="http://www.w3.org/2000/svg" className="absolute -right-6 -bottom-6 w-36 h-36 opacity-10 group-hover:scale-110 transition-transform duration-500 z-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+               </svg>
             </div>
-            <div className="bg-[#00B5E2] p-6 rounded-[2rem] text-white shadow-2xl shadow-[#00b5e2]/30">
-               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest">เคสใหม่วันนี้</p>
-               <h3 className="text-4xl font-black mt-1">{todayCount}</h3>
+
+            {/* เคสใหม่ - ใช้ SVG UserPlus */}
+            <div className="bg-sky-500 p-6 rounded-[2rem] text-white shadow-xl hover:shadow-2xl hover:scale-105 hover:-translate-y-2 transition-all duration-300 relative overflow-hidden group">
+               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest z-10 relative">เคสใหม่วันนี้</p>
+               <h3 className="text-4xl font-black mt-1 z-10 relative">{todayCount}</h3>
+               {/* SVG Icon ที่พื้นหลัง  */}
+               <svg xmlns="http://www.w3.org/2000/svg" className="absolute -right-6 -bottom-6 w-36 h-36 opacity-10 group-hover:scale-110 transition-transform duration-500 z-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+               </svg>
             </div>
-            <div className="bg-[#05CD99] p-6 rounded-[2rem] text-white shadow-2xl shadow-[#05cd99]/30">
-               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest">เสร็จสิ้น</p>
-               <h3 className="text-4xl font-black mt-1">{normal}</h3>
+
+            {/* ปกติ - ใช้ SVG CheckCircle */}
+            <div className="bg-emerald-500 p-6 rounded-[2rem] text-white shadow-xl hover:shadow-2xl hover:scale-105 hover:-translate-y-2 transition-all duration-300 relative overflow-hidden group">
+               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest z-10 relative">สถานะปกติ</p>
+               <h3 className="text-4xl font-black mt-1 z-10 relative">{normal}</h3>
+               {/* SVG Icon ที่พื้นหลัง  */}
+               <svg xmlns="http://www.w3.org/2000/svg" className="absolute -right-6 -bottom-6 w-36 h-36 opacity-10 group-hover:scale-110 transition-transform duration-500 z-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+               </svg>
             </div>
           </div>
 
-          {/* รายการรายงานล่าสุด */}
-          <div className="bg-white rounded-[2.5rem] shadow-sm border border-white p-8">
-            <div className="flex justify-between items-center mb-8">
-               <h4 className="font-bold text-[#2B3674] text-xl">📋 รายการแจ้งรายงานล่าสุด</h4>
-               <button onClick={fetchReports} className={`btn btn-sm bg-[#4318FF] hover:bg-[#3311CC] text-white border-none rounded-xl px-6 ${loading ? 'loading' : ''}`} disabled={loading}>
+          {/* ตารางรายงานล่าสุด (ใช้ค่าเดิม) */}
+          <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8">
+            <div className="flex justify-between items-center mb-8 px-2">
+               <h4 className="font-bold text-slate-800 text-2xl">📋 รายการแจ้งรายงานล่าสุด</h4>
+               <button onClick={fetchReports} className={`btn btn-sm btn-ghost bg-slate-50 border-slate-100 rounded-xl gap-2 ${loading ? 'loading' : ''}`} disabled={loading}>
                  {!loading && '🔄'} รีเฟรช
                </button>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="table w-full border-separate border-spacing-y-2">
-                <thead className="text-[#707EAE] text-[10px] uppercase font-bold tracking-widest border-none">
+              <table className="table w-full">
+                <thead className="text-slate-400 text-[10px] uppercase font-bold tracking-widest border-b border-slate-50">
                   <tr>
-                    <th className="bg-transparent border-none">รูปภาพ</th>
-                    <th className="bg-transparent border-none">ชื่อผู้สูงอายุ</th>
-                    <th className="bg-transparent border-none hidden sm:table-cell">วันที่</th>
-                    <th className="bg-transparent border-none text-center">สถานะ</th>
-                    <th className="bg-transparent border-none text-right">Action</th>
+                    <th>รูปถ่าย</th>
+                    <th>ชื่อผู้สูงอายุ</th>
+                    <th className="hidden sm:table-cell">วันที่ส่ง</th>
+                    <th className="text-center">สถานะ</th>
+                    <th className="text-right">จัดการ</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="text-sm font-medium">
                   {reports.map((r) => (
-                    <tr key={r.id} className="group hover:bg-[#F4F7FE] transition-all">
-                      <td className="bg-transparent border-none p-4 rounded-l-3xl">
+                    <tr key={r.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-50 last:border-0">
+                      <td>
                         {r.image_url ? (
                           <img 
                             src={r.image_url} 
                             onClick={() => showFullImage(r.image_url)}
-                            className="w-12 h-12 object-cover rounded-2xl cursor-pointer hover:scale-110 transition-transform shadow-md"
+                            className="w-12 h-12 object-cover rounded-xl cursor-pointer hover:ring-4 hover:ring-indigo-100 transition-all border border-slate-100"
                             alt="thumb" 
                           />
                         ) : (
-                          <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-[10px] text-slate-300">N/A</div>
+                          <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-[10px] text-slate-300">N/A</div>
                         )}
                       </td>
-                      <td className="bg-transparent border-none p-4 font-bold text-[#2B3674]">{r.patient_name}</td>
-                      <td className="bg-transparent border-none p-4 text-[#707EAE] font-medium hidden sm:table-cell">{new Date(r.created_at).toLocaleDateString('th-TH')}</td>
-                      <td className="bg-transparent border-none p-4 text-center">
-                        <span className={`px-5 py-2 rounded-xl font-bold text-[11px] uppercase tracking-wider ${r.complication_status === 'ผิดปกติ' ? 'bg-[#FFF5F5] text-[#EE5D50]' : 'bg-[#F2FFF9] text-[#05CD99]'}`}>
+                      <td className="font-bold text-slate-700">{r.patient_name}</td>
+                      <td className="text-slate-400 hidden sm:table-cell">{new Date(r.created_at).toLocaleDateString('th-TH')}</td>
+                      <td className="text-center">
+                        <span className={`px-4 py-1.5 rounded-xl font-bold text-[11px] uppercase ${r.complication_status === 'ผิดปกติ' ? 'bg-red-50 text-red-500 border border-red-100' : 'bg-green-50 text-green-500 border border-green-100'}`}>
                           {r.complication_status}
                         </span>
                       </td>
-                      <td className="bg-transparent border-none p-4 text-right rounded-r-3xl">
-                        <button onClick={() => handleDelete(r.id)} className="text-[#707EAE] hover:text-[#EE5D50] transition-colors p-2">🗑️</button>
+                      <td className="text-right">
+                        <button onClick={() => handleDelete(r.id)} className="btn btn-ghost btn-xs text-slate-300 hover:text-red-500">🗑️ ลบ</button>
                       </td>
                     </tr>
                   ))}
