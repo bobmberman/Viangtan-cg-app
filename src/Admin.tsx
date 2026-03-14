@@ -44,7 +44,7 @@ export default function Admin() {
       cancelButtonColor: '#e2e8f0', // สีเทา (Tailwind slate-200)
       confirmButtonText: 'ใช่, ลบข้อมูล',
       cancelButtonText: '<span style="color: #475569">ยกเลิก</span>',
-      fontFamily: 'Kanit',
+     
       reverseButtons: true // สลับให้ปุ่มยืนยันอยู่ด้านขวา
     });
 
@@ -59,7 +59,7 @@ export default function Admin() {
           icon: 'error',
           title: 'ลบไม่สำเร็จ',
           text: error.message,
-          fontFamily: 'Kanit'
+       
         });
       } else {
         // 3. แจ้งเตือนเมื่อลบสำเร็จ
@@ -69,7 +69,7 @@ export default function Admin() {
           text: 'ข้อมูลถูกลบออกจากระบบเรียบร้อยแล้ว',
           timer: 1500,
           showConfirmButton: false,
-          fontFamily: 'Kanit'
+          
         });
         fetchReports(); // ดึงข้อมูลใหม่มาแสดง
       }
