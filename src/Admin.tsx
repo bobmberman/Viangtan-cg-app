@@ -139,3 +139,33 @@ const styles: { [key: string]: React.CSSProperties } = {
   imageHint: { fontSize: '0.75rem', color: '#888', marginTop: '5px' },
   empty: { textAlign: 'center', padding: '50px', color: '#888' },
 };
+
+// ฟังก์ชันสำหรับลบข้อมูล
+const deleteReport = async (id: string) => {
+    if (!window.confirm('คุณแน่ใจใช่ไหมว่าจะลบรายงานนี้?')) return;
+
+    const { error } = await supabase
+      .from('cg_reports')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      alert('ลบไม่สำเร็จ: ' + error.message);
+    } else {
+      // เมื่อลบสำเร็จ ให้ดึงข้อมูลใหม่มาแสดงทันที
+      fetchReports();
+    }
+  };
+
+  <div style={styles.cardHeader}>
+    <span style={styles.patientName}>👵 {item.patient_name}</span>
+    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+      <span style={styles.date}>{new Date(item.created_at).toLocaleDateString('th-TH')}</span>
+      <button 
+        onClick={() => deleteReport(item.id)} 
+        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}
+      >
+        🗑️
+      </button>
+    </div>
+  </div>
