@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
-import ExcelJS from 'exceljs'; // --- 1. เปลี่ยนมาใช้ exceljs แทน ---
+import ExcelJS from 'exceljs';
 
 const SUPABASE_URL = 'https://bietketdljzltumxfkgc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_o5Ofjv8ask6C1dk-Qe1ihw_g4mqqmUT';
@@ -29,7 +29,6 @@ export default function Admin() {
     setLoading(false);
   };
 
-  // --- 📸 2. ฟังก์ชันพิเศษสำหรับดึงรูปภาพมาแปลงเป็น Base64 ---
   const getBase64FromUrl = async (url: string) => {
     const data = await fetch(url);
     const blob = await data.blob();
@@ -40,7 +39,6 @@ export default function Admin() {
     });
   };
 
-  // --- 📊 3. ฟังก์ชันส่งออกไฟล์ Excel พร้อมรูปภาพ ---
   const exportToExcelWithImages = async () => {
     if (filteredReports.length === 0) {
       Swal.fire('ไม่มีข้อมูล', 'ไม่พบข้อมูลที่ต้องการส่งออก', 'info');
@@ -49,7 +47,7 @@ export default function Admin() {
 
     Swal.fire({
       title: 'กำลังเตรียมไฟล์...',
-      text: 'ระบบกำลังดึงข้อมูลรูปภาพ กรุณารอสักครู่ครับ',
+      text: 'ระบบกำลังประมวลผลรูปภาพ กรุณารอสักครู่ครับ',
       allowOutsideClick: false,
       didOpen: () => { Swal.showLoading(); }
     });
@@ -58,9 +56,8 @@ export default function Admin() {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('รายงานการเยี่ยม');
 
-      // กำหนดหัวตาราง
       worksheet.columns = [
-        { header: 'รูปถ่าย', key: 'img', width: 20 },
+        { header: 'รูปถ่าย', key: 'img', width: 22 },
         { header: 'ชื่อผู้สูงอายุ', key: 'name', width: 30 },
         { header: 'วันที่เยี่ยม', key: 'date', width: 15 },
         { header: 'กิจกรรม', key: 'act', width: 40 },
@@ -68,11 +65,10 @@ export default function Admin() {
         { header: 'รายละเอียด', key: 'detail', width: 40 },
       ];
 
-      // ใส่ข้อมูลทีละแถว
       for (let i = 0; i < filteredReports.length; i++) {
         const report = filteredReports[i];
-        const rowNumber = i + 2; // เริ่มที่แถว 2 (แถว 1 คือ Header)
-
+        
+        // ลบ rowNumber ที่ไม่ได้ใช้ออกเพื่อแก้ Error TS6133
         const row = worksheet.addRow({
           name: report.patient_name,
           date: new Date(report.created_at).toLocaleDateString('th-TH'),
@@ -81,10 +77,9 @@ export default function Admin() {
           detail: report.complication_detail || '-'
         });
 
-        // ปรับความสูงแถวให้เหมาะกับรูป (หน่วยเป็น points)
-        row.height = 90;
+        row.height = 95;
+        row.alignment = { vertical: 'middle', horizontal: 'left' };
 
-        // ถ้ามีรูป ให้ดึงมาใส่ใน Cell
         if (report.image_url) {
           try {
             const base64: any = await getBase64FromUrl(report.image_url);
@@ -94,35 +89,34 @@ export default function Admin() {
             });
 
             worksheet.addImage(imageId, {
-              tl: { col: 0.1, row: i + 1.1 }, // ปรับตำแหน่งรูปให้อยู่ตรงกลาง Cell เล็กน้อย
-              ext: { width: 110, height: 110 }  // ปรับขนาดรูปใน Excel
+              tl: { col: 0.1, row: i + 1.1 },
+              ext: { width: 120, height: 120 }
             });
           } catch (e) {
-            console.error("โหลดรูปไม่สำเร็จ:", report.image_url);
+            console.error("Image load failed");
           }
         }
       }
 
-      // ตกแต่ง Header
       worksheet.getRow(1).font = { bold: true, size: 12 };
+      worksheet.getRow(1).height = 30;
       worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
 
-      // สั่งดาวน์โหลด
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = `รายงานการเยี่ยม_เทศบาลเวียงตาล_${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`;
+      link.download = `รายงานการเยี่ยม_เวียงตาล_${new Date().getTime()}.xlsx`;
       link.click();
 
-      Swal.fire({ icon: 'success', title: 'สำเร็จ!', text: 'ดาวน์โหลดไฟล์ Excel พร้อมรูปภาพเรียบร้อยแล้ว', timer: 2000, showConfirmButton: false });
+      Swal.fire({ icon: 'success', title: 'สำเร็จ!', timer: 2000, showConfirmButton: false });
     } catch (error) {
-      Swal.fire('ผิดพลาด', 'ไม่สามารถสร้างไฟล์ได้ กรุณาลองใหม่ครับ', 'error');
+      Swal.fire('ผิดพลาด', 'กรุณาลองใหม่อีกครั้ง', 'error');
     }
   };
 
   const showFullImage = (url: string) => {
-    Swal.fire({ imageUrl: url, imageAlt: 'Visit Photo', showConfirmButton: false, showCloseButton: true, width: 'auto', background: 'transparent', padding: '0' });
+    Swal.fire({ imageUrl: url, imageAlt: 'Visit', showConfirmButton: false, showCloseButton: true, width: 'auto', background: 'transparent', padding: '0' });
   };
 
   const handleDelete = async (id: string) => {
@@ -157,7 +151,7 @@ export default function Admin() {
                 <h1 className="text-2xl font-black italic tracking-tighter uppercase leading-none">VIANGTAN</h1>
                 <p className="text-[10px] opacity-60 tracking-[0.2em] uppercase mt-1">Smart City Dash</p>
             </div>
-            <button className="lg:hidden text-white p-2 bg-white/10 rounded-full" onClick={() => setIsSidebarOpen(false)}>✕</button>
+            <button className="lg:hidden text-white p-2" onClick={() => setIsSidebarOpen(false)}>✕</button>
         </div>
         <nav className="p-6 space-y-3 mt-6 text-sm">
           <div className="bg-white/20 p-4 rounded-2xl flex items-center gap-4 shadow-xl border border-white/10" onClick={() => setIsSidebarOpen(false)}>📊 <span className="font-bold">แดชบอร์ด</span></div>
@@ -166,45 +160,47 @@ export default function Admin() {
       </aside>
 
       <div className="flex-1 flex flex-col h-full overflow-hidden">
-        <header className="p-6 flex justify-between items-center bg-white/50 backdrop-blur-md">
+        <header className="p-6 flex justify-between items-center bg-white/50 backdrop-blur-md border-b border-white/10">
           <div className="flex items-center gap-4">
             <button className="w-12 h-12 flex items-center justify-center bg-white rounded-full shadow-md lg:hidden border border-slate-100 text-[#4318FF]" onClick={() => setIsSidebarOpen(true)}>☰</button>
             <div>
-              <h1 className="text-2xl font-bold text-[#2B3674] leading-none">ระบบจัดการข้อมูล</h1>
-              <p className="text-[#707EAE] text-sm mt-1 font-medium italic">Executive Command Center</p>
+              <h1 className="text-2xl font-bold text-[#2B3674] leading-none">รายงานการเยี่ยมบ้าน</h1>
+              <p className="text-[#707EAE] text-sm mt-1 font-medium">Executive Management Center</p>
             </div>
           </div>
           <div className="hidden sm:block text-[#4318FF] font-black text-xl">{time.toLocaleTimeString('th-TH')}</div>
         </header>
 
         <main className="flex-1 p-6 overflow-y-auto pt-0">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-[#4318FF] p-6 rounded-[2rem] text-white shadow-xl hover:scale-105 transition-all relative overflow-hidden group cursor-default">
-               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest relative z-10">ทั้งหมด</p>
-               <h3 className="text-4xl font-black mt-1 relative z-10">{total}</h3>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8 mt-4">
+            <div className="bg-[#4318FF] p-6 rounded-[2rem] text-white shadow-xl">
+               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest">ทั้งหมด</p>
+               <h3 className="text-4xl font-black mt-1">{total}</h3>
             </div>
-            <div className="bg-[#FFB547] p-6 rounded-[2rem] text-[#2B3674] shadow-xl hover:scale-105 transition-all relative overflow-hidden group cursor-default border border-white/20">
-               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest relative z-10">ผิดปกติ</p>
-               <h3 className="text-4xl font-black mt-1 relative z-10">{abnormal}</h3>
+            <div className="bg-[#FFB547] p-6 rounded-[2rem] text-[#2B3674] shadow-xl border border-white/20">
+               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest">ผิดปกติ</p>
+               <h3 className="text-4xl font-black mt-1">{abnormal}</h3>
             </div>
-            <div className="bg-[#00B5E2] p-6 rounded-[2rem] text-white shadow-xl hover:scale-105 transition-all relative overflow-hidden group cursor-default">
-               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest relative z-10">ส่งวันนี้</p>
+            <div className="bg-[#00B5E2] p-6 rounded-[2rem] text-white shadow-xl">
+               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest">วันนี้</p>
                <h3 className="text-4xl font-black mt-1">{todayCount}</h3>
             </div>
-            <div className="bg-[#05CD99] p-6 rounded-[2rem] text-white shadow-xl hover:scale-105 transition-all relative overflow-hidden group cursor-default">
-               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest relative z-10">ปกติ</p>
+            <div className="bg-[#05CD99] p-6 rounded-[2rem] text-white shadow-xl">
+               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest">ปกติ</p>
                <h3 className="text-4xl font-black mt-1">{normal}</h3>
             </div>
           </div>
 
+          {/* Search & Export */}
           <div className="bg-white rounded-[2rem] shadow-sm p-6 mb-8 border border-white">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="form-control">
-                <label className="label text-[10px] font-bold text-[#707EAE] uppercase tracking-widest">ค้นหาชื่อ</label>
+                <label className="label text-[10px] font-bold text-[#707EAE] uppercase">ค้นชื่อ</label>
                 <input type="text" placeholder="พิมพ์ชื่อ..." className="input bg-[#F4F7FE] border-none rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               </div>
               <div className="form-control">
-                <label className="label text-[10px] font-bold text-[#707EAE] uppercase tracking-widest">สถานะ</label>
+                <label className="label text-[10px] font-bold text-[#707EAE] uppercase">สถานะ</label>
                 <select className="select bg-[#F4F7FE] border-none rounded-xl" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                   <option value="ทั้งหมด">ทั้งหมด</option>
                   <option value="ปกติ">ปกติ</option>
@@ -212,26 +208,21 @@ export default function Admin() {
                 </select>
               </div>
               <div className="form-control">
-                <label className="label text-[10px] font-bold text-[#707EAE] uppercase tracking-widest">วันที่</label>
+                <label className="label text-[10px] font-bold text-[#707EAE] uppercase">วันที่</label>
                 <input type="date" className="input bg-[#F4F7FE] border-none rounded-xl" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
               </div>
               <div className="flex items-end gap-2">
                 <button onClick={() => {setSearchTerm(''); setStatusFilter('ทั้งหมด'); setDateFilter('');}} className="btn btn-ghost bg-[#F4F7FE] rounded-xl flex-1 text-[#707EAE] font-bold">ล้าง</button>
-                {/* --- 🔘 ปุ่ม Excel พรีเมียม --- */}
-                <button 
-                  onClick={exportToExcelWithImages} 
-                  className="btn bg-[#05CD99] hover:bg-[#04B386] border-none rounded-xl flex-1 text-white font-bold shadow-lg shadow-emerald-100"
-                >
-                  📗 Excel + รูป
-                </button>
+                <button onClick={exportToExcelWithImages} className="btn bg-[#05CD99] hover:bg-[#04B386] border-none rounded-xl flex-1 text-white font-bold shadow-lg shadow-emerald-100">📗 Excel+รูป</button>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-[2.5rem] shadow-sm p-8 border border-white">
+          {/* Table */}
+          <div className="bg-white rounded-[2.5rem] shadow-sm p-8 border border-white mb-10">
             <div className="flex justify-between items-center mb-8 px-2">
-               <h4 className="font-bold text-[#2B3674] text-xl">รายการแจ้งรายงานล่าสุด ({filteredReports.length})</h4>
-               <button onClick={fetchReports} className={`btn btn-sm bg-[#4318FF] text-white border-none rounded-xl px-6 ${loading ? 'loading' : ''}`} disabled={loading}>รีเฟรช</button>
+               <h4 className="font-bold text-[#2B3674] text-xl">รายการข้อมูลล่าสุด ({filteredReports.length})</h4>
+               <button onClick={fetchReports} className={`btn btn-sm bg-[#4318FF] text-white border-none rounded-xl px-6 ${loading ? 'loading' : ''}`} disabled={loading}>🔄 รีเฟรช</button>
             </div>
             <div className="overflow-x-auto">
               <table className="table w-full border-separate border-spacing-y-2">
@@ -239,7 +230,7 @@ export default function Admin() {
                   <tr>
                     <th>รูปภาพ</th>
                     <th>ผู้สูงอายุ</th>
-                    <th className="hidden sm:table-cell">วันที่ส่ง</th>
+                    <th className="hidden sm:table-cell">วันที่</th>
                     <th className="text-center">สถานะ</th>
                     <th className="text-right">Action</th>
                   </tr>
