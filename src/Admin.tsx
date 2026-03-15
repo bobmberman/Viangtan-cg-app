@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
 import ExcelJS from 'exceljs';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+// 🟢 เพิ่ม LayersControl และ useMap เข้ามา
+import { MapContainer, TileLayer, Marker, Popup, LayersControl, useMap } from 'react-leaflet';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import L from 'leaflet';
 
-// --- แก้ไขไอคอนแผนที่ของ Leaflet ---
 const markerIcon = new L.Icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -14,10 +14,21 @@ const markerIcon = new L.Icon({
   iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
 });
 
-// --- 🔗 เชื่อมต่อกับ Supabase ---
 const SUPABASE_URL = 'https://bietketdljzltumxfkgc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_o5Ofjv8ask6C1dk-Qe1ihw_g4mqqmUT';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// 🟢 ฟังก์ชันสำหรับเลื่อนแผนที่อัตโนมัติ (Fly To)
+const MapUpdater = ({ center }: { center: [number, number] | null }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (center) {
+      // สั่งให้แผนที่บินไปที่จุดนั้นและซูมระดับ 17
+      map.flyTo(center, 17, { animate: true, duration: 1.5 });
+    }
+  }, [center, map]);
+  return null;
+};
 
 export default function Admin() {
   const [reports, setReports] = useState<any[]>([]);
@@ -28,6 +39,9 @@ export default function Admin() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ทั้งหมด');
   const [dateFilter, setDateFilter] = useState('');
+  
+  // 🟢 State สำหรับเก็บพิกัดที่ถูกคลิกจากตาราง
+  const [selectedLocation, setSelectedLocation] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -119,130 +133,132 @@ export default function Admin() {
   }, {});
   const barData = Object.keys(patientStats).map(key => ({ name: key.split(' ')[1] || key, เยี่ยม: patientStats[key] })).slice(0, 5);
 
-  const mapCenter = reports.find(r => r.latitude)?.latitude 
-    ? [reports.find(r => r.latitude).latitude, reports.find(r => r.longitude).longitude] 
-    : [18.3283, 99.3174]; 
+  // 🟢 พิกัดเริ่มต้นตำบลเวียงตาล (ประมาณจุดกึ่งกลาง)
+  const defaultCenter: [number, number] = [18.3312, 99.3174];
+
+  // 🟢 ฟังก์ชันเลื่อนหน้าจอขึ้นไปดูแผนที่
+  const focusOnMap = (lat: number, lng: number) => {
+    setSelectedLocation([lat, lng]);
+    const mainScroll = document.getElementById('main-scroll-area');
+    if (mainScroll) {
+      mainScroll.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   return (
-    // 🌍 ใช้ fixed inset-0 เพื่อบังคับให้ขอบแนบสนิทกับหน้าจอ 100% ไม่มีช่องว่างแน่นอน
-    <div className="fixed inset-0 flex bg-[#F4F7FE] font-['Kanit'] overflow-hidden">
+    <div className="flex h-screen w-screen bg-[#F8FAFC] font-['Kanit'] overflow-hidden">
       
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
-        @import url('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
-        * { font-family: 'Kanit', sans-serif; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; } /* บังคับให้หน้าจอไม่มีขอบ */
-        .leaflet-container { width: 100%; height: 100%; border-radius: 1rem; z-index: 10; }
-        input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(0.4); }
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;700;800;900&display=swap');
+        * { font-family: 'Kanit', sans-serif !important; }
+        input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(0.2); transform: scale(1.5); }
+        .leaflet-container { width: 100%; height: 100%; border-radius: 1.5rem; z-index: 10; }
+        /* ตกแต่งปุ่มสลับแผนที่ Leaflet ให้ดูทันสมัย */
+        .leaflet-control-layers { border: none !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important; border-radius: 12px !important; overflow: hidden; font-family: 'Kanit', sans-serif !important; }
+        .leaflet-control-layers-toggle { width: 40px !important; height: 40px !important; }
       `}</style>
       
-      {/* 🌑 Overlay สำหรับมือถือ */}
-      {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>}
+      {isSidebarOpen && <div className="fixed inset-0 bg-black/70 z-[120] lg:hidden backdrop-blur-md" onClick={() => setIsSidebarOpen(false)}></div>}
 
-      {/* 🟣 Sidebar: กำหนดความกว้างตายตัว และหดไม่ได้ (shrink-0) */}
-      <aside className={`absolute lg:static inset-y-0 left-0 z-50 w-[280px] bg-[#2B3674] text-white transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} flex flex-col flex-shrink-0 shadow-2xl lg:shadow-none`}>
-        <div className="p-6 flex items-center gap-3 border-b border-white/10 shrink-0">
-            <div className="w-10 h-10 bg-[#05CD99] rounded-full flex items-center justify-center font-bold text-white shadow-lg shadow-[#05CD99]/30">V</div>
-            <div>
-              <h1 className="text-xl font-bold tracking-wider leading-none">Viangtan</h1>
-              <p className="text-[10px] opacity-70 tracking-widest mt-1">SmartCity</p>
-            </div>
+      <aside className={`fixed inset-y-0 left-0 z-[130] w-80 bg-gradient-to-b from-[#4318FF] to-[#707EAE] text-white transition-transform duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex-shrink-0 shadow-2xl lg:shadow-none`}>
+        <div className="p-10 border-b border-white/10 text-center relative">
+            <button className="lg:hidden absolute top-10 right-6 text-white/50 hover:text-white" onClick={() => setIsSidebarOpen(false)}>✕</button>
+            <h1 className="text-4xl font-black italic tracking-tighter uppercase leading-none">VIANGTAN</h1>
+            <p className="text-xs opacity-60 tracking-[0.3em] uppercase mt-3 font-bold">Smart City Dash</p>
         </div>
-        
-        <div className="p-4 mt-4 flex-1 overflow-y-auto">
-          <p className="text-[10px] text-slate-400 font-bold mb-3 pl-4 uppercase tracking-wider">Main Menu</p>
-          <div className="bg-white text-[#2B3674] p-3.5 rounded-xl flex items-center gap-3 shadow-lg font-bold text-sm cursor-pointer mb-2">
-            📊 แดชบอร์ด
+        <nav className="p-8 space-y-6 mt-6">
+          <div className="bg-white/20 p-5 rounded-[2rem] flex items-center gap-5 shadow-2xl border border-white/20 cursor-pointer">
+            <span className="text-2xl">📊</span> <span className="font-bold text-xl uppercase tracking-wider">แดชบอร์ด</span>
           </div>
-          <div className="text-white/60 hover:bg-white/10 p-3.5 rounded-xl flex items-center gap-3 font-medium text-sm cursor-pointer transition-all hover:text-white">
-            👥 จัดการผู้ใช้งาน
+          <div className="p-5 rounded-[2rem] flex items-center gap-5 opacity-40 hover:bg-white/10 cursor-pointer transition-all hover:opacity-100">
+            <span className="text-2xl">👥</span> <span className="font-bold text-xl uppercase tracking-wider">จัดการข้อมูล</span>
           </div>
-        </div>
-
-        <div className="p-4 m-4 bg-white/10 rounded-2xl border border-white/10 shrink-0">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center font-bold">B</div>
-            <div className="overflow-hidden">
-              <p className="text-sm font-bold truncate">Adisak (Beum)</p>
-              <p className="text-[10px] text-[#05CD99] font-bold">● Online</p>
-            </div>
-          </div>
-          <button className="w-full py-2 bg-white text-[#2B3674] text-xs font-bold rounded-lg hover:bg-slate-100 transition-colors">
-            [→ Logout
-          </button>
-        </div>
+        </nav>
       </aside>
 
-      {/* ⚪ Main Content Area: ยืดหยุ่นเต็มพื้นที่ (flex-1) */}
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative bg-[#F4F7FE]">
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative">
         
-        <header className="px-8 py-5 flex flex-wrap gap-4 justify-between items-center bg-white border-b border-slate-100 shrink-0 z-20">
-          <div className="flex items-center gap-4">
-            <button className="w-10 h-10 flex lg:hidden items-center justify-center bg-slate-100 rounded-full text-[#4318FF]" onClick={() => setIsSidebarOpen(true)}>☰</button>
+        <header className="p-10 flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-8">
+            <button className="w-16 h-16 flex lg:hidden items-center justify-center bg-white rounded-2xl shadow-xl text-[#4318FF] text-3xl" onClick={() => setIsSidebarOpen(true)}>☰</button>
             <div>
-              <h1 className="text-xl font-bold text-[#2B3674]">ภาพรวมระบบเยี่ยมบ้าน</h1>
-              <p className="text-[#707EAE] text-[11px] font-medium uppercase tracking-widest mt-0.5">Executive Command Center</p>
+              <h1 className="text-5xl font-black text-[#2B3674] tracking-tight leading-none uppercase">รายงานการเยี่ยมบ้าน</h1>
+              <p className="text-[#707EAE] text-xl font-bold mt-2 uppercase tracking-[0.1em]">Executive Management Center</p>
             </div>
           </div>
-          
-          <div className="hidden md:flex items-center gap-3 bg-white px-6 py-2 rounded-full shadow-[0_0_15px_rgba(0,0,0,0.05)] border border-slate-100">
-            <div className="text-[#4318FF] font-bold text-lg tabular-nums">{time.toLocaleTimeString('th-TH')}</div>
-            <div className="w-px h-6 bg-slate-200"></div>
-            <div className="text-xs text-slate-400 font-medium">{time.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
-            <span className="text-xl opacity-30 ml-1">🕒</span>
-          </div>
-
-          <div className="hidden sm:flex items-center gap-3">
-             <div className="text-right">
-               <p className="text-sm font-bold text-[#2B3674]">Adisak (Beum)</p>
-               <p className="text-[10px] text-slate-400 font-medium">ผู้ดูแลระบบ</p>
-             </div>
-             <div className="w-10 h-10 bg-[#4318FF] text-white rounded-full flex items-center justify-center font-bold">👤</div>
+          <div className="hidden lg:block text-[#4318FF] font-black text-4xl bg-white px-10 py-5 rounded-[2.5rem] shadow-sm border border-slate-50 tabular-nums">
+            {time.toLocaleTimeString('th-TH')}
           </div>
         </header>
 
-        <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
+        {/* 🟢 เพิ่ม ID main-scroll-area ไว้ให้คำสั่งเลื่อนหน้าจอมองหา */}
+        <main id="main-scroll-area" className="flex-1 p-10 pt-0 overflow-y-auto scroll-smooth">
           
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-            <div className="bg-[#4318FF] p-6 rounded-2xl text-white shadow-lg relative overflow-hidden">
-               <p className="text-xs font-medium opacity-80 mb-2">ทั้งหมด</p>
-               <h3 className="text-4xl font-bold">{total}</h3>
-               <div className="absolute bottom-6 left-6 right-10 h-1 bg-white/30 rounded-full"><div className="w-full h-full bg-white rounded-full"></div></div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+            <div className="bg-[#4318FF] p-10 rounded-[3rem] text-white shadow-2xl hover:translate-y-[-5px] transition-all">
+               <p className="text-sm font-black opacity-60 uppercase tracking-[0.2em]">ทั้งหมด</p>
+               <h3 className="text-6xl font-black mt-3 leading-none">{total} <span className="text-2xl font-bold opacity-40">ราย</span></h3>
             </div>
-            <div className="bg-[#FFB547] p-6 rounded-2xl text-white shadow-lg relative overflow-hidden">
-               <p className="text-xs font-medium opacity-80 mb-2">ผิดปกติ</p>
-               <h3 className="text-4xl font-bold">{abnormal}</h3>
-               <div className="absolute bottom-6 left-6 right-10 h-1 bg-white/30 rounded-full"><div className="w-2/3 h-full bg-white rounded-full"></div></div>
+            <div className="bg-[#FFB547] p-10 rounded-[3rem] text-[#2B3674] shadow-2xl hover:translate-y-[-5px] transition-all">
+               <p className="text-sm font-black opacity-60 uppercase tracking-[0.2em]">ผิดปกติ</p>
+               <h3 className="text-6xl font-black mt-3 leading-none">{abnormal} <span className="text-2xl font-bold opacity-30">ราย</span></h3>
             </div>
-            <div className="bg-[#00B5E2] p-6 rounded-2xl text-white shadow-lg relative overflow-hidden">
-               <p className="text-xs font-medium opacity-80 mb-2">เคสใหม่วันนี้</p>
-               <h3 className="text-4xl font-bold">{todayCount}</h3>
-               <div className="absolute bottom-6 left-6 right-10 h-1 bg-white/30 rounded-full"><div className="w-1/4 h-full bg-white rounded-full"></div></div>
+            <div className="bg-[#00B5E2] p-10 rounded-[3rem] text-white shadow-2xl hover:translate-y-[-5px] transition-all">
+               <p className="text-sm font-black opacity-60 uppercase tracking-[0.2em]">วันนี้</p>
+               <h3 className="text-6xl font-black mt-3 leading-none">{todayCount} <span className="text-2xl font-bold opacity-40">ราย</span></h3>
             </div>
-            <div className="bg-[#05CD99] p-6 rounded-2xl text-white shadow-lg relative overflow-hidden">
-               <p className="text-xs font-medium opacity-80 mb-2">ปกติ</p>
-               <h3 className="text-4xl font-bold">{normal}</h3>
-               <div className="absolute bottom-6 left-6 right-10 h-1 bg-white/30 rounded-full"><div className="w-4/5 h-full bg-white rounded-full"></div></div>
+            <div className="bg-[#05CD99] p-10 rounded-[3rem] text-white shadow-2xl hover:translate-y-[-5px] transition-all">
+               <p className="text-sm font-black opacity-60 uppercase tracking-[0.2em]">ปกติ</p>
+               <h3 className="text-6xl font-black mt-3 leading-none">{total - abnormal} <span className="text-2xl font-bold opacity-40">ราย</span></h3>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
-            <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm p-4 h-[400px] flex flex-col border border-slate-100">
-              <div className="flex justify-between items-center mb-4 px-2">
-                <h4 className="font-bold text-[#2B3674] text-sm flex items-center gap-2">📍 แผนที่พิกัดจุดเยี่ยมบ้าน</h4>
-                <button onClick={fetchReports} disabled={loading} className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-[#4318FF] px-3 py-1 rounded-lg font-bold transition-colors">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-12">
+            <div className="xl:col-span-2 bg-white rounded-[3rem] shadow-sm p-6 h-[500px] flex flex-col border border-white/50">
+              <div className="flex justify-between items-center mb-6 px-4">
+                <h4 className="font-black text-[#2B3674] text-2xl flex items-center gap-3">📍 แผนที่พิกัดจุดเยี่ยมบ้าน</h4>
+                <button onClick={fetchReports} disabled={loading} className="text-sm bg-indigo-50 hover:bg-indigo-100 text-[#4318FF] px-6 py-3 rounded-[1rem] font-bold transition-colors">
                   {loading ? 'กำลังโหลด...' : '🔄 โหลดข้อมูลใหม่'}
                 </button>
               </div>
-              <div className="flex-1 rounded-xl overflow-hidden bg-slate-50 relative z-0">
-                <MapContainer center={mapCenter as [number, number]} zoom={11} scrollWheelZoom={true}>
-                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' />
+              <div className="flex-1 rounded-[1.5rem] overflow-hidden bg-slate-50 relative z-0 shadow-inner">
+                {/* 🟢 ตั้งค่า MapContainer เริ่มต้นที่เวียงตาล */}
+                <MapContainer center={defaultCenter} zoom={13} scrollWheelZoom={true}>
+                  
+                  {/* 🟢 เพิ่มเครื่องมือเลือก Layer แผนที่ */}
+                  <LayersControl position="topright">
+                    
+                    {/* แผนที่ดาวเทียม Google Hybrid (เป็นค่าเริ่มต้น: checked) */}
+                    <LayersControl.BaseLayer checked name="🛰️ แผนที่ดาวเทียม">
+                      <TileLayer 
+                        url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" 
+                        attribution='&copy; Google Maps' 
+                      />
+                    </LayersControl.BaseLayer>
+
+                    {/* แผนที่ถนน OpenStreetMap */}
+                    <LayersControl.BaseLayer name="🛣️ แผนที่ถนน">
+                      <TileLayer 
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
+                        attribution='&copy; OpenStreetMap' 
+                      />
+                    </LayersControl.BaseLayer>
+
+                  </LayersControl>
+
+                  {/* 🟢 คอมโพเนนต์อัปเดตตำแหน่งเมื่อถูกคลิก */}
+                  <MapUpdater center={selectedLocation} />
+
                   {filteredReports.filter(r => r.latitude && r.longitude).map(r => (
                     <Marker key={r.id} position={[r.latitude, r.longitude]} icon={markerIcon}>
                       <Popup className="font-kanit">
-                        <b className="text-[#2B3674]">{r.patient_name}</b><br/>
-                        กิจกรรม: {r.activities}<br/>
-                        สถานะ: <span className={r.complication_status === 'ผิดปกติ' ? 'text-red-500' : 'text-green-500'}>{r.complication_status}</span>
+                        <div className="p-1">
+                           <b className="text-[#2B3674] text-sm block mb-1">{r.patient_name}</b>
+                           <span className="text-xs text-slate-500">กิจกรรม: {r.activities}</span><br/>
+                           <span className={`text-xs font-bold px-2 py-0.5 rounded mt-1 inline-block ${r.complication_status === 'ผิดปกติ' ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'}`}>
+                             {r.complication_status}
+                           </span>
+                        </div>
                       </Popup>
                     </Marker>
                   ))}
@@ -250,72 +266,114 @@ export default function Admin() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm p-6 h-[400px] flex flex-col gap-6 border border-slate-100">
+            <div className="bg-white rounded-[3rem] shadow-sm p-8 h-[500px] flex flex-col gap-6 border border-white/50">
               <div className="flex-1">
-                <h4 className="font-bold text-[#2B3674] text-xs text-center mb-4">สถิติความถี่การเยี่ยม (คน)</h4>
+                <h4 className="font-black text-[#2B3674] text-lg text-center mb-6">สถิติความถี่การเยี่ยม (คน)</h4>
                 <ResponsiveContainer width="100%" height="80%">
                   <BarChart data={barData} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
                     <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 10, fill: '#707EAE' }} axisLine={false} tickLine={false} />
-                    <ChartTooltip cursor={{ fill: '#F4F7FE' }} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                    <Bar dataKey="เยี่ยม" fill="#4318FF" radius={[0, 4, 4, 0]} barSize={12} />
+                    <YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 12, fill: '#707EAE', fontWeight: 'bold' }} axisLine={false} tickLine={false} />
+                    <ChartTooltip cursor={{ fill: '#F4F7FE' }} contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }} />
+                    <Bar dataKey="เยี่ยม" fill="#4318FF" radius={[0, 8, 8, 0]} barSize={16} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <div className="flex-1 border-t border-slate-100 pt-4">
-                <h4 className="font-bold text-[#2B3674] text-xs text-center mb-2">สัดส่วนสถานะการประเมิน</h4>
-                <div className="flex items-center justify-center h-[100px]">
+              <div className="flex-1 border-t-2 border-slate-50 pt-6">
+                <h4 className="font-black text-[#2B3674] text-lg text-center mb-4">สัดส่วนการประเมิน</h4>
+                <div className="flex items-center justify-center h-[120px]">
                   <ResponsiveContainer width="50%" height="100%">
                     <PieChart>
-                      <Pie data={pieData} innerRadius={30} outerRadius={45} paddingAngle={5} dataKey="value" stroke="none">
+                      <Pie data={pieData} innerRadius={40} outerRadius={60} paddingAngle={5} dataKey="value" stroke="none">
                         {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                       </Pie>
-                      <ChartTooltip contentStyle={{ borderRadius: '10px', fontSize: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <ChartTooltip contentStyle={{ borderRadius: '10px', fontSize: '14px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                     </PieChart>
                   </ResponsiveContainer>
-                  <div className="w-1/2 flex flex-col gap-2 pl-4">
-                    <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium"><div className="w-2.5 h-2.5 rounded-sm bg-[#05CD99]"></div> ปกติ ({normal})</div>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium"><div className="w-2.5 h-2.5 rounded-sm bg-[#FFB547]"></div> ผิดปกติ ({abnormal})</div>
+                  <div className="w-1/2 flex flex-col gap-3 pl-6">
+                    <div className="flex items-center gap-3 text-sm text-slate-500 font-bold"><div className="w-4 h-4 rounded-full bg-[#05CD99]"></div> ปกติ ({normal})</div>
+                    <div className="flex items-center gap-3 text-sm text-slate-500 font-bold"><div className="w-4 h-4 rounded-full bg-[#FFB547]"></div> ผิดปกติ ({abnormal})</div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
-            <div className="flex flex-wrap md:flex-nowrap gap-4 mb-6">
-              <input type="text" placeholder="ค้นหาชื่อ..." className="input input-bordered bg-slate-50 h-10 text-sm flex-1" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-              <select className="select select-bordered bg-slate-50 h-10 text-sm w-32" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                <option value="ทั้งหมด">สถานะทั้งหมด</option><option value="ปกติ">ปกติ</option><option value="ผิดปกติ">ผิดปกติ</option>
-              </select>
-              <input type="date" className="input input-bordered bg-slate-50 h-10 text-sm w-40" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
-              <button onClick={() => {setSearchTerm(''); setStatusFilter('ทั้งหมด'); setDateFilter('');}} className="btn btn-ghost h-10 text-slate-500">ล้าง</button>
-              <button onClick={exportToExcelWithImages} className="btn bg-[#05CD99] text-white border-none h-10 hover:bg-[#04b386]">📗 Excel</button>
+          <div className="bg-white rounded-[3rem] shadow-sm p-10 mb-10 border border-white/50">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+              <div className="form-control">
+                <label className="label mb-2"><span className="text-lg font-black text-[#2B3674] uppercase tracking-wider">ค้นหาชื่อ</span></label>
+                <input type="text" placeholder="พิมพ์ชื่อ..." className="input bg-[#F4F7FE] border-none rounded-2xl h-20 text-xl font-bold px-8 focus:ring-4 focus:ring-[#4318FF]/10 transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              </div>
+              <div className="form-control">
+                <label className="label mb-2"><span className="text-lg font-black text-[#2B3674] uppercase tracking-wider">สถานะ</span></label>
+                <select className="select bg-[#F4F7FE] border-none rounded-2xl h-20 text-xl font-black text-[#2B3674] px-8" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                  <option value="ทั้งหมด">ทั้งหมด</option>
+                  <option value="ปกติ">ปกติ</option>
+                  <option value="ผิดปกติ">ผิดปกติ</option>
+                </select>
+              </div>
+              <div className="form-control">
+                <label className="label mb-2"><span className="text-lg font-black text-[#2B3674] uppercase tracking-wider">วันที่</span></label>
+                <input type="date" className="input bg-[#F4F7FE] border-none rounded-2xl h-20 text-xl font-black text-[#2B3674] px-8" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
+              </div>
+              <div className="flex items-end gap-4">
+                <button onClick={() => {setSearchTerm(''); setStatusFilter('ทั้งหมด'); setDateFilter('');}} className="btn btn-ghost bg-[#F4F7FE] rounded-2xl h-20 flex-1 font-black text-xl hover:bg-slate-200">ล้าง</button>
+                <button onClick={exportToExcelWithImages} className="btn bg-[#05CD99] border-none rounded-2xl h-20 flex-1 text-white font-black text-xl shadow-xl shadow-emerald-100 hover:scale-105 transition-all">📗 EXCEL</button>
+              </div>
             </div>
+          </div>
 
+          <div className="bg-white rounded-[4rem] shadow-sm p-12 border border-white mb-20">
+            <div className="flex justify-between items-center mb-12 px-2">
+               <h4 className="font-black text-[#2B3674] text-4xl uppercase tracking-tight">รายการแจ้งล่าสุด ({filteredReports.length})</h4>
+               <button onClick={fetchReports} className={`btn h-16 px-10 bg-[#4318FF] text-white border-none rounded-[1.5rem] font-black text-xl shadow-lg ${loading ? 'loading' : ''}`}>🔄 รีเฟรชข้อมูล</button>
+            </div>
             <div className="overflow-x-auto">
-              <table className="table w-full">
-                <thead className="text-[11px] uppercase font-bold text-slate-400 bg-slate-50">
+              <table className="table w-full border-separate border-spacing-y-4">
+                <thead className="text-[#707EAE] text-lg uppercase font-black tracking-[0.2em] border-none">
                   <tr>
-                    <th className="rounded-l-lg p-3">รูปภาพ</th><th>ชื่อผู้สูงอายุ</th><th>วันที่ส่ง</th><th className="text-center">สถานะ</th><th className="text-right rounded-r-lg">จัดการ</th>
+                    <th className="pb-8">รูปถ่าย</th>
+                    <th className="pb-8">ผู้สูงอายุ</th>
+                    <th className="pb-8 text-center hidden sm:table-cell">แผนที่</th>
+                    <th className="pb-8 text-center">สถานะ</th>
+                    <th className="pb-8 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="text-sm">
+                <tbody className="text-2xl font-bold">
                   {filteredReports.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-50/50 border-b border-slate-50">
-                      <td className="p-3">
-                        {r.image_url ? <img src={r.image_url} onClick={() => showFullImage(r.image_url)} className="w-10 h-10 object-cover rounded-lg cursor-pointer border border-slate-200" /> : '-'}
+                    <tr key={r.id} className="group hover:bg-[#F4F7FE] transition-all duration-300">
+                      <td className="p-6 rounded-l-[3rem] bg-transparent border-none">
+                        {r.image_url ? (
+                          <img src={r.image_url} onClick={() => showFullImage(r.image_url)} className="w-20 h-20 object-cover rounded-[1.5rem] cursor-pointer hover:scale-110 shadow-2xl border-4 border-white" />
+                        ) : (
+                          <div className="w-20 h-20 bg-slate-200 rounded-[1.5rem] flex items-center justify-center text-sm text-slate-400">No Image</div>
+                        )}
                       </td>
-                      <td className="p-3 font-medium text-[#2B3674]">{r.patient_name}</td>
-                      <td className="p-3 text-slate-500 text-xs">{new Date(r.created_at).toLocaleDateString('th-TH')}</td>
-                      <td className="p-3 text-center">
-                        <span className={`px-3 py-1 rounded-md text-[10px] font-bold ${r.complication_status === 'ผิดปกติ' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                      <td className="p-6 bg-transparent border-none font-black text-[#2B3674] text-3xl">
+                        {r.patient_name}
+                        <p className="text-sm text-slate-400 font-bold mt-2 uppercase tracking-widest">{new Date(r.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                      </td>
+                      <td className="p-6 bg-transparent border-none text-center hidden sm:table-cell">
+                        {r.latitude ? (
+                          // 🟢 เปลี่ยนจากเปิดหน้าต่างใหม่ เป็นการเรียกฟังก์ชัน focusOnMap เพื่อบินไปหาพิกัด
+                          <button 
+                            onClick={() => focusOnMap(r.latitude, r.longitude)}
+                            className="btn btn-ghost btn-lg text-[#4318FF] bg-blue-50 border-4 border-blue-100 hover:bg-blue-100 rounded-[1.5rem] font-black text-lg active:scale-95 transition-transform"
+                          >
+                            📍 ซูมดูแผนที่
+                          </button>
+                        ) : (
+                          <span className="text-sm text-slate-300 italic font-bold">ไม่มีพิกัด</span>
+                        )}
+                      </td>
+                      <td className="p-6 bg-transparent border-none text-center">
+                        <span className={`px-10 py-4 rounded-[1.5rem] font-black text-sm uppercase tracking-[0.1em] shadow-md border-2 ${r.complication_status === 'ผิดปกติ' ? 'bg-[#FFF5F5] text-[#EE5D50] border-[#EE5D50]/20' : 'bg-[#F2FFF9] text-[#05CD99] border-[#05CD99]/20'}`}>
                           {r.complication_status}
                         </span>
                       </td>
-                      <td className="p-3 text-right">
-                        <button onClick={() => handleDelete(r.id)} className="text-slate-400 hover:text-red-500">🗑️</button>
+                      <td className="p-6 bg-transparent border-none text-right rounded-r-[3rem]">
+                        <button onClick={() => handleDelete(r.id)} className="text-[#707EAE] hover:text-[#EE5D50] p-5 transition-colors text-3xl">🗑️</button>
                       </td>
                     </tr>
                   ))}
@@ -323,7 +381,6 @@ export default function Admin() {
               </table>
             </div>
           </div>
-          
         </main>
       </div>
     </div>
