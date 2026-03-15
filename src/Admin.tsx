@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
 import ExcelJS from 'exceljs';
 
-// --- 🔗 เชื่อมต่อกับ Supabase ---
 const SUPABASE_URL = 'https://bietketdljzltumxfkgc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_o5Ofjv8ask6C1dk-Qe1ihw_g4mqqmUT';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -28,6 +27,18 @@ export default function Admin() {
     const { data } = await supabase.from('cg_reports').select('*').order('created_at', { ascending: false });
     setReports(data || []);
     setLoading(false);
+  };
+
+  const showFullImage = (url: string) => {
+    Swal.fire({ imageUrl: url, showConfirmButton: false, showCloseButton: true, width: 'auto', background: 'rgba(255,255,255,0.95)', padding: '0' });
+  };
+
+  const handleDelete = async (id: string) => {
+    const result = await Swal.fire({ title: 'ยืนยันการลบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ลบข้อมูล' });
+    if (result.isConfirmed) {
+      await supabase.from('cg_reports').delete().eq('id', id);
+      fetchReports();
+    }
   };
 
   const getBase64FromUrl = async (url: string) => {
@@ -73,22 +84,10 @@ export default function Admin() {
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = `รายงานเยี่ยมบ้าน_เวียงตาล_${new Date().getTime()}.xlsx`;
+      link.download = `รายงานเยี่ยมบ้าน_${new Date().getTime()}.xlsx`;
       link.click();
       Swal.fire({ icon: 'success', title: 'สำเร็จ!', timer: 1500, showConfirmButton: false });
     } catch (error) { Swal.fire('Error', 'สร้างไฟล์ไม่สำเร็จ', 'error'); }
-  };
-
-  const showFullImage = (url: string) => {
-    Swal.fire({ imageUrl: url, imageAlt: 'Visit', showConfirmButton: false, showCloseButton: true, width: 'auto', background: 'transparent', padding: '0' });
-  };
-
-  const handleDelete = async (id: string) => {
-    const result = await Swal.fire({ title: 'ลบรายงานนี้?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ลบข้อมูล' });
-    if (result.isConfirmed) {
-      await supabase.from('cg_reports').delete().eq('id', id);
-      fetchReports();
-    }
   };
 
   useEffect(() => { fetchReports(); }, []);
@@ -105,59 +104,57 @@ export default function Admin() {
   });
 
   return (
-    <div className="flex h-screen w-full bg-[#F8FAFC] font-['Kanit'] overflow-hidden relative">
+    <div className="relative flex h-screen w-full bg-[#F8FAFC] font-['Kanit'] overflow-hidden">
       
-      {/* CSS Link for Google Font & Custom Styles */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;700;800&display=swap');
         input[type="date"]::-webkit-calendar-picker-indicator {
           cursor: pointer;
-          filter: invert(0.3);
+          filter: invert(0.4);
         }
       `}</style>
       
-      {/* 🌑 Overlay */}
+      {/* 🌑 Overlay สำหรับมือถือ */}
       {isSidebarOpen && (
-        <div className="fixed inset-0 bg-black/60 z-[100] lg:hidden backdrop-blur-sm transition-opacity duration-300" onClick={() => setIsSidebarOpen(false)}></div>
+        <div className="fixed inset-0 bg-black/60 z-[100] lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>
       )}
 
-      {/* 🟣 Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-[110] w-72 bg-gradient-to-b from-[#4318FF] to-[#707EAE] text-white transition-transform duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
+      {/* 🟣 Sidebar: ใช้ fixed ตรึงขอบซ้ายสุดเสมอ */}
+      <aside className={`fixed inset-y-0 left-0 z-[110] w-72 bg-gradient-to-b from-[#4318FF] to-[#707EAE] text-white transition-transform duration-300 lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-8 border-b border-white/10 text-center">
             <h1 className="text-3xl font-extrabold italic tracking-tighter uppercase leading-none">VIANGTAN</h1>
-            <p className="text-xs opacity-60 tracking-[0.2em] uppercase mt-2">Smart City Dash</p>
+            <p className="text-[10px] opacity-60 tracking-[0.2em] uppercase mt-2">Smart City Dash</p>
         </div>
         <nav className="p-6 space-y-4 mt-6">
           <div className="bg-white/20 p-4 rounded-3xl flex items-center gap-4 shadow-xl border border-white/10">
             <span className="text-xl">📊</span> <span className="font-bold text-lg">แดชบอร์ดสรุปผล</span>
           </div>
-          <div className="p-4 rounded-3xl flex items-center gap-4 opacity-60 hover:bg-white/10 cursor-pointer transition-all">
-            <span className="text-xl">👥</span> <span className="font-medium text-lg">รายชื่อผู้ดูแล (CG)</span>
+          <div className="p-4 rounded-3xl flex items-center gap-4 opacity-50 hover:bg-white/10 cursor-pointer transition-all">
+            <span className="text-xl">👥</span> <span className="font-medium text-lg">จัดการรายชื่อ CG</span>
           </div>
         </nav>
-        <button className="lg:hidden absolute top-8 right-6 text-white" onClick={() => setIsSidebarOpen(false)}>✕</button>
       </aside>
 
-      {/* ⚪ Main Content Area */}
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+      {/* ⚪ Main Content: ใช้ ml-72 เพื่อขยับเนื้อหาไปทางขวาให้พอดีกับ Sidebar */}
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden lg:ml-72 transition-all">
         
-        {/* Header (ใหญ่และชัดเจน) */}
+        {/* Header (ตัวหนังสือใหญ่ ชัดเจน) */}
         <header className="p-8 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-6">
             <button className="w-14 h-14 flex lg:hidden items-center justify-center bg-white rounded-2xl shadow-md text-[#4318FF] text-2xl" onClick={() => setIsSidebarOpen(true)}>☰</button>
             <div>
               <h1 className="text-4xl font-extrabold text-[#2B3674] tracking-tight">รายงานการเยี่ยมบ้าน</h1>
-              <p className="text-[#707EAE] text-lg font-medium mt-1 uppercase tracking-wider">Executive Management Center</p>
+              <p className="text-[#707EAE] text-lg font-medium mt-1 uppercase tracking-widest">Executive Management Center</p>
             </div>
           </div>
-          <div className="hidden sm:block text-[#4318FF] font-extrabold text-3xl bg-white px-8 py-3 rounded-[2rem] shadow-sm border border-slate-50">
+          <div className="hidden sm:block text-[#4318FF] font-extrabold text-3xl bg-white px-8 py-4 rounded-[2.5rem] shadow-sm border border-slate-50">
             {time.toLocaleTimeString('th-TH')}
           </div>
         </header>
 
         <main className="flex-1 p-8 pt-0 overflow-y-auto">
           
-          {/* Stats Cards (ขยายตัวเลขและเพิ่มเงา) */}
+          {/* Stats Cards (ใหญ่และอ่านง่าย) */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 mb-10 mt-4">
             <div className="bg-[#4318FF] p-8 rounded-[2.5rem] text-white shadow-xl hover:scale-[1.02] transition-transform">
                <p className="text-xs font-bold opacity-70 uppercase tracking-widest">ทั้งหมด</p>
@@ -177,11 +174,11 @@ export default function Admin() {
             </div>
           </div>
 
-          {/* Search & Date Filter Panel (ทันสมัยและมีปฏิทิน) */}
+          {/* Filter Panel (ปรับให้ Label หนาขึ้นและช่องวันที่เป็นปฏิทิน) */}
           <div className="bg-white rounded-[2.5rem] shadow-sm p-8 mb-10 border border-white">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="form-control">
-                <label className="label py-2"><span className="text-sm font-extrabold text-[#2B3674] uppercase">ค้นหาชื่อ</span></label>
+                <label className="label py-2"><span className="text-sm font-extrabold text-[#2B3674] uppercase">ค้นหาด้วยชื่อ</span></label>
                 <input type="text" placeholder="พิมพ์ชื่อผู้สูงอายุ..." className="input bg-[#F4F7FE] border-none rounded-2xl h-16 text-lg font-medium" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               </div>
               <div className="form-control">
@@ -204,24 +201,24 @@ export default function Admin() {
               </div>
               <div className="flex items-end gap-3">
                 <button onClick={() => {setSearchTerm(''); setStatusFilter('ทั้งหมด'); setDateFilter('');}} className="btn btn-ghost bg-[#F4F7FE] rounded-2xl h-16 flex-1 font-bold text-lg">ล้าง</button>
-                <button onClick={exportToExcelWithImages} className="btn bg-[#05CD99] border-none rounded-2xl h-16 flex-1 text-white font-extrabold text-lg shadow-lg shadow-emerald-100 hover:scale-105 transition-all">📗 EXCEL</button>
+                <button onClick={exportToExcelWithImages} className="btn bg-[#05CD99] border-none rounded-2xl h-16 flex-1 text-white font-extrabold text-lg shadow-lg shadow-emerald-100 hover:scale-[1.02] transition-transform">📗 EXCEL</button>
               </div>
             </div>
           </div>
 
-          {/* Table List (ใหญ่และอ่านง่าย) */}
+          {/* Table List (หัวข้อใหญ่ ทันสมัย) */}
           <div className="bg-white rounded-[3rem] shadow-sm p-10 border border-white mb-20">
             <div className="flex justify-between items-center mb-10 px-2">
-               <h4 className="font-extrabold text-[#2B3674] text-3xl">รายการแจ้งรายงาน ({filteredReports.length})</h4>
+               <h4 className="font-extrabold text-[#2B3674] text-3xl">รายการล่าสุด ({filteredReports.length})</h4>
                <button onClick={fetchReports} className={`btn h-14 px-8 bg-[#4318FF] text-white border-none rounded-2xl font-bold text-lg ${loading ? 'loading' : ''}`}>🔄 รีเฟรชข้อมูล</button>
             </div>
             <div className="overflow-x-auto">
               <table className="table w-full border-separate border-spacing-y-3">
                 <thead className="text-[#707EAE] text-sm uppercase font-extrabold tracking-widest border-none">
                   <tr>
-                    <th className="pb-6">รูปภาพ</th>
+                    <th className="pb-6">รูปถ่าย</th>
                     <th className="pb-6">ชื่อผู้สูงอายุ</th>
-                    <th className="pb-6 text-center">แผนที่</th>
+                    <th className="pb-6 text-center">พิกัด</th>
                     <th className="pb-6 text-center">สถานะ</th>
                     <th className="pb-6 text-right">Action</th>
                   </tr>
@@ -240,7 +237,7 @@ export default function Admin() {
                         {r.latitude ? (
                           <a href={`https://www.google.com/maps?q=${r.latitude},${r.longitude}`} target="_blank" rel="noreferrer" className="btn btn-ghost btn-md text-[#4318FF] bg-blue-50 border-blue-100 hover:bg-blue-100 rounded-xl font-extrabold">📍 แผนที่</a>
                         ) : (
-                          <span className="text-sm text-slate-300 italic font-medium">ไม่มีพิกัด</span>
+                          <span className="text-sm text-slate-300 italic">ไม่มีพิกัด</span>
                         )}
                       </td>
                       <td className="p-5 bg-transparent border-none text-center">
