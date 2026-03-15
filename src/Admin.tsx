@@ -21,7 +21,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 export default function Admin() {
   const [reports, setReports] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // <-- ตัวแปรตัวปัญหา ตอนนี้เราจะเอามันไปใช้แล้วครับ!
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [time, setTime] = useState(new Date());
 
@@ -96,7 +96,6 @@ export default function Admin() {
 
   useEffect(() => { fetchReports(); }, []);
 
-  // --- 📊 การคำนวณสถิติ ---
   const filteredReports = reports.filter((report) => {
     const matchesName = report.patient_name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'ทั้งหมด' || report.complication_status === statusFilter;
@@ -109,28 +108,24 @@ export default function Admin() {
   const todayCount = filteredReports.filter(r => new Date(r.created_at).toDateString() === new Date().toDateString()).length;
   const normal = total - abnormal;
 
-  // ข้อมูลสำหรับกราฟวงกลม
   const pieData = [
     { name: 'ปกติ', value: normal, color: '#05CD99' },
     { name: 'ผิดปกติ', value: abnormal, color: '#FFB547' }
   ];
 
-  // ข้อมูลสำหรับกราฟแท่ง (นับตามชื่อผู้ป่วยว่าใครถูกเยี่ยมบ่อยสุด 5 อันดับแรก)
   const patientStats = filteredReports.reduce((acc, curr) => {
     acc[curr.patient_name] = (acc[curr.patient_name] || 0) + 1;
     return acc;
   }, {});
   const barData = Object.keys(patientStats).map(key => ({ name: key.split(' ')[1] || key, เยี่ยม: patientStats[key] })).slice(0, 5);
 
-  // จุดกึ่งกลางแผนที่ (อิงจากข้อมูลแรกที่มีพิกัด หรือตั้งค่าเริ่มต้นที่ลำปาง)
   const mapCenter = reports.find(r => r.latitude)?.latitude 
     ? [reports.find(r => r.latitude).latitude, reports.find(r => r.longitude).longitude] 
-    : [18.3283, 99.3174]; // พิกัดคร่าวๆ อ.ห้างฉัตร
+    : [18.3283, 99.3174]; 
 
   return (
     <div className="flex h-screen w-full bg-[#F4F7FE] font-['Kanit'] overflow-hidden">
       
-      {/* โหลด CSS ของ Leaflet แผนที่และฟอนต์ */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
         @import url('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
@@ -139,10 +134,8 @@ export default function Admin() {
         input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(0.4); }
       `}</style>
       
-      {/* 🌑 Overlay สำหรับมือถือ */}
       {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>}
 
-      {/* 🟣 Sidebar (สไตล์ใหม่ สีน้ำเงินเข้ม) */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#2B3674] text-white transition-transform duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col shadow-2xl lg:shadow-none`}>
         <div className="p-6 flex items-center gap-3 border-b border-white/10">
             <div className="w-10 h-10 bg-[#05CD99] rounded-full flex items-center justify-center font-bold text-white shadow-lg shadow-[#05CD99]/30">V</div>
@@ -162,7 +155,6 @@ export default function Admin() {
           </div>
         </div>
 
-        {/* User Profile ด้านล่าง */}
         <div className="p-4 m-4 bg-white/10 rounded-2xl border border-white/10">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center font-bold">B</div>
@@ -177,10 +169,8 @@ export default function Admin() {
         </div>
       </aside>
 
-      {/* ⚪ Main Content Area */}
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative">
         
-        {/* Header สไตล์ Command Center */}
         <header className="px-8 py-5 flex flex-wrap gap-4 justify-between items-center bg-white border-b border-slate-100 z-20">
           <div className="flex items-center gap-4">
             <button className="w-10 h-10 flex lg:hidden items-center justify-center bg-slate-100 rounded-full text-[#4318FF]" onClick={() => setIsSidebarOpen(true)}>☰</button>
@@ -190,7 +180,6 @@ export default function Admin() {
             </div>
           </div>
           
-          {/* นาฬิกาตรงกลาง (แบบในรูป) */}
           <div className="hidden md:flex items-center gap-3 bg-white px-6 py-2 rounded-full shadow-[0_0_15px_rgba(0,0,0,0.05)] border border-slate-100">
             <div className="text-[#4318FF] font-bold text-lg tabular-nums">{time.toLocaleTimeString('th-TH')}</div>
             <div className="w-px h-6 bg-slate-200"></div>
@@ -209,7 +198,6 @@ export default function Admin() {
 
         <main className="flex-1 p-6 lg:p-8 overflow-y-auto bg-[#F4F7FE]">
           
-          {/* --- 📊 Stats Cards (ดีไซน์มีเส้นขีดด้านล่าง) --- */}
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
             <div className="bg-[#4318FF] p-6 rounded-2xl text-white shadow-lg relative overflow-hidden">
                <p className="text-xs font-medium opacity-80 mb-2">ทั้งหมด</p>
@@ -233,14 +221,14 @@ export default function Admin() {
             </div>
           </div>
 
-          {/* --- 🗺️ Map & Charts Grid --- */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
-            
-            {/* แผนที่ (กินพื้นที่ 2 ส่วน) */}
             <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm p-4 h-[400px] flex flex-col border border-slate-100">
               <div className="flex justify-between items-center mb-4 px-2">
                 <h4 className="font-bold text-[#2B3674] text-sm flex items-center gap-2">📍 แผนที่พิกัดจุดเยี่ยมบ้าน</h4>
-                <span className="text-[10px] bg-slate-100 text-slate-500 px-3 py-1 rounded-lg">Real-time Map</span>
+                {/* 🔄 เพิ่มปุ่มรีเฟรชข้อมูลตรงนี้แล้วใช้ตัวแปร loading ครับ! */}
+                <button onClick={fetchReports} disabled={loading} className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-[#4318FF] px-3 py-1 rounded-lg font-bold transition-colors">
+                  {loading ? 'กำลังโหลด...' : '🔄 โหลดข้อมูลใหม่'}
+                </button>
               </div>
               <div className="flex-1 rounded-xl overflow-hidden bg-slate-50 relative z-0">
                 <MapContainer center={mapCenter as [number, number]} zoom={11} scrollWheelZoom={true}>
@@ -258,7 +246,6 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* กราฟสถิติ (กินพื้นที่ 1 ส่วน) */}
             <div className="bg-white rounded-2xl shadow-sm p-6 h-[400px] flex flex-col gap-6 border border-slate-100">
               <div className="flex-1">
                 <h4 className="font-bold text-[#2B3674] text-xs text-center mb-4">สถิติความถี่การเยี่ยม (คน)</h4>
@@ -292,7 +279,6 @@ export default function Admin() {
             </div>
           </div>
 
-          {/* --- 🔍 Search & Table --- */}
           <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
             <div className="flex flex-wrap md:flex-nowrap gap-4 mb-6">
               <input type="text" placeholder="ค้นหาชื่อ..." className="input input-bordered bg-slate-50 h-10 text-sm flex-1" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
