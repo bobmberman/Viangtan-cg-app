@@ -30,7 +30,7 @@ export default function Admin() {
   };
 
   const showFullImage = (url: string) => {
-    Swal.fire({ imageUrl: url, showConfirmButton: false, showCloseButton: true, width: 'auto', background: 'rgba(255,255,255,0.95)', padding: '0' });
+    Swal.fire({ imageUrl: url, showConfirmButton: false, showCloseButton: true, width: 'auto', background: 'rgba(255,255,255,0.98)', padding: '0' });
   };
 
   const handleDelete = async (id: string) => {
@@ -84,7 +84,7 @@ export default function Admin() {
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = `รายงานเยี่ยมบ้าน_${new Date().getTime()}.xlsx`;
+      link.download = `รายงานเยี่ยมบ้าน_เวียงตาล_${new Date().getTime()}.xlsx`;
       link.click();
       Swal.fire({ icon: 'success', title: 'สำเร็จ!', timer: 1500, showConfirmButton: false });
     } catch (error) { Swal.fire('Error', 'สร้างไฟล์ไม่สำเร็จ', 'error'); }
@@ -104,149 +104,147 @@ export default function Admin() {
   });
 
   return (
-    <div className="relative flex h-screen w-full bg-[#F8FAFC] font-['Kanit'] overflow-hidden">
+    // 🌍 บังคับกว้าง w-screen เพื่อให้เต็มขอบหน้าจอเบราว์เซอร์
+    <div className="flex h-screen w-screen bg-[#F8FAFC] font-['Kanit'] overflow-hidden">
       
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;700;800;900&display=swap');
+        * { font-family: 'Kanit', sans-serif !important; }
         input[type="date"]::-webkit-calendar-picker-indicator {
           cursor: pointer;
-          filter: invert(0.4);
+          filter: invert(0.2);
+          transform: scale(1.5);
         }
       `}</style>
       
       {/* 🌑 Overlay สำหรับมือถือ */}
       {isSidebarOpen && (
-        <div className="fixed inset-0 bg-black/60 z-[100] lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>
+        <div className="fixed inset-0 bg-black/70 z-[120] lg:hidden backdrop-blur-md" onClick={() => setIsSidebarOpen(false)}></div>
       )}
 
-      {/* 🟣 Sidebar: ใช้ fixed ตรึงขอบซ้ายสุดเสมอ */}
-      <aside className={`fixed inset-y-0 left-0 z-[110] w-72 bg-gradient-to-b from-[#4318FF] to-[#707EAE] text-white transition-transform duration-300 lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-8 border-b border-white/10 text-center">
-            <h1 className="text-3xl font-extrabold italic tracking-tighter uppercase leading-none">VIANGTAN</h1>
-            <p className="text-[10px] opacity-60 tracking-[0.2em] uppercase mt-2">Smart City Dash</p>
+      {/* 🟣 Sidebar: ปรับความกว้างเป็น w-80 และแก้การวางตำแหน่ง */}
+      <aside className={`fixed inset-y-0 left-0 z-[130] w-80 bg-gradient-to-b from-[#4318FF] to-[#707EAE] text-white transition-transform duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex-shrink-0 shadow-2xl lg:shadow-none`}>
+        <div className="p-10 border-b border-white/10 text-center">
+            <h1 className="text-4xl font-black italic tracking-tighter uppercase leading-none">VIANGTAN</h1>
+            <p className="text-xs opacity-60 tracking-[0.3em] uppercase mt-3 font-bold">Smart City Dash</p>
         </div>
-        <nav className="p-6 space-y-4 mt-6">
-          <div className="bg-white/20 p-4 rounded-3xl flex items-center gap-4 shadow-xl border border-white/10">
-            <span className="text-xl">📊</span> <span className="font-bold text-lg">แดชบอร์ดสรุปผล</span>
+        <nav className="p-8 space-y-6 mt-6">
+          <div className="bg-white/20 p-5 rounded-[2rem] flex items-center gap-5 shadow-2xl border border-white/20">
+            <span className="text-2xl">📊</span> <span className="font-bold text-xl uppercase tracking-wider">แดชบอร์ด</span>
           </div>
-          <div className="p-4 rounded-3xl flex items-center gap-4 opacity-50 hover:bg-white/10 cursor-pointer transition-all">
-            <span className="text-xl">👥</span> <span className="font-medium text-lg">จัดการรายชื่อ CG</span>
+          <div className="p-5 rounded-[2rem] flex items-center gap-5 opacity-40 hover:bg-white/10 cursor-pointer transition-all hover:opacity-100">
+            <span className="text-2xl">👥</span> <span className="font-bold text-xl uppercase tracking-wider">จัดการข้อมูล</span>
           </div>
         </nav>
       </aside>
 
-      {/* ⚪ Main Content: ใช้ ml-72 เพื่อขยับเนื้อหาไปทางขวาให้พอดีกับ Sidebar */}
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden lg:ml-72 transition-all">
+      {/* ⚪ Main Content Area: ใช้ flex-1 และ min-w-0 เพื่อให้ยืดเต็มที่ฝั่งขวา */}
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative">
         
-        {/* Header (ตัวหนังสือใหญ่ ชัดเจน) */}
-        <header className="p-8 flex justify-between items-center shrink-0">
-          <div className="flex items-center gap-6">
-            <button className="w-14 h-14 flex lg:hidden items-center justify-center bg-white rounded-2xl shadow-md text-[#4318FF] text-2xl" onClick={() => setIsSidebarOpen(true)}>☰</button>
+        {/* Header (ใหญ่สะใจตามคำขอ) */}
+        <header className="p-10 flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-8">
+            <button className="w-16 h-16 flex lg:hidden items-center justify-center bg-white rounded-2xl shadow-xl text-[#4318FF] text-3xl" onClick={() => setIsSidebarOpen(true)}>☰</button>
             <div>
-              <h1 className="text-4xl font-extrabold text-[#2B3674] tracking-tight">รายงานการเยี่ยมบ้าน</h1>
-              <p className="text-[#707EAE] text-lg font-medium mt-1 uppercase tracking-widest">Executive Management Center</p>
+              <h1 className="text-5xl font-black text-[#2B3674] tracking-tight leading-none uppercase">รายงานการเยี่ยมบ้าน</h1>
+              <p className="text-[#707EAE] text-xl font-bold mt-2 uppercase tracking-[0.1em]">Executive Management Center</p>
             </div>
           </div>
-          <div className="hidden sm:block text-[#4318FF] font-extrabold text-3xl bg-white px-8 py-4 rounded-[2.5rem] shadow-sm border border-slate-50">
+          <div className="hidden lg:block text-[#4318FF] font-black text-4xl bg-white px-10 py-5 rounded-[2.5rem] shadow-sm border border-slate-50 tabular-nums">
             {time.toLocaleTimeString('th-TH')}
           </div>
         </header>
 
-        <main className="flex-1 p-8 pt-0 overflow-y-auto">
+        <main className="flex-1 p-10 pt-0 overflow-y-auto">
           
-          {/* Stats Cards (ใหญ่และอ่านง่าย) */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 mb-10 mt-4">
-            <div className="bg-[#4318FF] p-8 rounded-[2.5rem] text-white shadow-xl hover:scale-[1.02] transition-transform">
-               <p className="text-xs font-bold opacity-70 uppercase tracking-widest">ทั้งหมด</p>
-               <h3 className="text-5xl font-black mt-2">{total} <span className="text-xl font-normal opacity-60">ราย</span></h3>
+          {/* Stats Cards (ขยายขนาดตัวอักษร) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+            <div className="bg-[#4318FF] p-10 rounded-[3rem] text-white shadow-2xl hover:translate-y-[-5px] transition-all">
+               <p className="text-sm font-black opacity-60 uppercase tracking-[0.2em]">ทั้งหมด</p>
+               <h3 className="text-6xl font-black mt-3 leading-none">{total} <span className="text-2xl font-bold opacity-40">ราย</span></h3>
             </div>
-            <div className="bg-[#FFB547] p-8 rounded-[2.5rem] text-[#2B3674] shadow-xl hover:scale-[1.02] transition-transform">
-               <p className="text-xs font-bold opacity-70 uppercase tracking-widest">ผิดปกติ</p>
-               <h3 className="text-5xl font-black mt-2">{abnormal} <span className="text-xl font-normal opacity-40">ราย</span></h3>
+            <div className="bg-[#FFB547] p-10 rounded-[3rem] text-[#2B3674] shadow-2xl hover:translate-y-[-5px] transition-all">
+               <p className="text-sm font-black opacity-60 uppercase tracking-[0.2em]">ผิดปกติ</p>
+               <h3 className="text-6xl font-black mt-3 leading-none">{abnormal} <span className="text-2xl font-bold opacity-30">ราย</span></h3>
             </div>
-            <div className="bg-[#00B5E2] p-8 rounded-[2.5rem] text-white shadow-xl hover:scale-[1.02] transition-transform">
-               <p className="text-xs font-bold opacity-70 uppercase tracking-widest">วันนี้</p>
-               <h3 className="text-5xl font-black mt-2">{todayCount} <span className="text-xl font-normal opacity-60">ราย</span></h3>
+            <div className="bg-[#00B5E2] p-10 rounded-[3rem] text-white shadow-2xl hover:translate-y-[-5px] transition-all">
+               <p className="text-sm font-black opacity-60 uppercase tracking-[0.2em]">วันนี้</p>
+               <h3 className="text-6xl font-black mt-3 leading-none">{todayCount} <span className="text-2xl font-bold opacity-40">ราย</span></h3>
             </div>
-            <div className="bg-[#05CD99] p-8 rounded-[2.5rem] text-white shadow-xl hover:scale-[1.02] transition-transform">
-               <p className="text-xs font-bold opacity-70 uppercase tracking-widest">ปกติ</p>
-               <h3 className="text-5xl font-black mt-2">{total - abnormal} <span className="text-xl font-normal opacity-60">ราย</span></h3>
+            <div className="bg-[#05CD99] p-10 rounded-[3rem] text-white shadow-2xl hover:translate-y-[-5px] transition-all">
+               <p className="text-sm font-black opacity-60 uppercase tracking-[0.2em]">ปกติ</p>
+               <h3 className="text-6xl font-black mt-3 leading-none">{total - abnormal} <span className="text-2xl font-bold opacity-40">ราย</span></h3>
             </div>
           </div>
 
-          {/* Filter Panel (ปรับให้ Label หนาขึ้นและช่องวันที่เป็นปฏิทิน) */}
-          <div className="bg-white rounded-[2.5rem] shadow-sm p-8 mb-10 border border-white">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {/* Filter Panel (หัวข้อหนาและมีปฏิทิน) */}
+          <div className="bg-white rounded-[3rem] shadow-sm p-10 mb-10 border border-white/50">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               <div className="form-control">
-                <label className="label py-2"><span className="text-sm font-extrabold text-[#2B3674] uppercase">ค้นหาด้วยชื่อ</span></label>
-                <input type="text" placeholder="พิมพ์ชื่อผู้สูงอายุ..." className="input bg-[#F4F7FE] border-none rounded-2xl h-16 text-lg font-medium" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <label className="label mb-2"><span className="text-lg font-black text-[#2B3674] uppercase tracking-wider">ค้นหาชื่อ</span></label>
+                <input type="text" placeholder="พิมพ์ชื่อผู้สูงอายุ..." className="input bg-[#F4F7FE] border-none rounded-2xl h-20 text-xl font-bold px-8 focus:ring-4 focus:ring-[#4318FF]/10 transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               </div>
               <div className="form-control">
-                <label className="label py-2"><span className="text-sm font-extrabold text-[#2B3674] uppercase">สถานะ</span></label>
-                <select className="select bg-[#F4F7FE] border-none rounded-2xl h-16 text-lg font-bold text-[#2B3674]" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <label className="label mb-2"><span className="text-lg font-black text-[#2B3674] uppercase tracking-wider">สถานะ</span></label>
+                <select className="select bg-[#F4F7FE] border-none rounded-2xl h-20 text-xl font-black text-[#2B3674] px-8" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                   <option value="ทั้งหมด">ทั้งหมด</option>
                   <option value="ปกติ">ปกติ</option>
                   <option value="ผิดปกติ">ผิดปกติ</option>
                 </select>
               </div>
               <div className="form-control">
-                <label className="label py-2"><span className="text-sm font-extrabold text-[#2B3674] uppercase">วันที่ส่งรายงาน (ปฏิทิน)</span></label>
-                {/* 📅 ปรับปรุงช่องวันที่ให้กดแล้วเด้งปฏิทินทันที */}
-                <input 
-                  type="date" 
-                  className="input bg-[#F4F7FE] border-none rounded-2xl h-16 text-lg font-bold text-[#2B3674] px-6" 
-                  value={dateFilter} 
-                  onChange={(e) => setDateFilter(e.target.value)} 
-                />
+                <label className="label mb-2"><span className="text-lg font-black text-[#2B3674] uppercase tracking-wider">วันที่ (ปฏิทิน)</span></label>
+                {/* 📅 ปรับช่องวันที่ให้กดแล้วปฏิทินเด้งทันที */}
+                <input type="date" className="input bg-[#F4F7FE] border-none rounded-2xl h-20 text-xl font-black text-[#2B3674] px-8" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
               </div>
-              <div className="flex items-end gap-3">
-                <button onClick={() => {setSearchTerm(''); setStatusFilter('ทั้งหมด'); setDateFilter('');}} className="btn btn-ghost bg-[#F4F7FE] rounded-2xl h-16 flex-1 font-bold text-lg">ล้าง</button>
-                <button onClick={exportToExcelWithImages} className="btn bg-[#05CD99] border-none rounded-2xl h-16 flex-1 text-white font-extrabold text-lg shadow-lg shadow-emerald-100 hover:scale-[1.02] transition-transform">📗 EXCEL</button>
+              <div className="flex items-end gap-4">
+                <button onClick={() => {setSearchTerm(''); setStatusFilter('ทั้งหมด'); setDateFilter('');}} className="btn btn-ghost bg-[#F4F7FE] rounded-2xl h-20 flex-1 font-black text-xl hover:bg-slate-200">ล้าง</button>
+                <button onClick={exportToExcelWithImages} className="btn bg-[#05CD99] border-none rounded-2xl h-20 flex-1 text-white font-black text-xl shadow-xl shadow-emerald-100 hover:scale-105 transition-all">📗 EXCEL</button>
               </div>
             </div>
           </div>
 
-          {/* Table List (หัวข้อใหญ่ ทันสมัย) */}
-          <div className="bg-white rounded-[3rem] shadow-sm p-10 border border-white mb-20">
-            <div className="flex justify-between items-center mb-10 px-2">
-               <h4 className="font-extrabold text-[#2B3674] text-3xl">รายการล่าสุด ({filteredReports.length})</h4>
-               <button onClick={fetchReports} className={`btn h-14 px-8 bg-[#4318FF] text-white border-none rounded-2xl font-bold text-lg ${loading ? 'loading' : ''}`}>🔄 รีเฟรชข้อมูล</button>
+          {/* Table List (ใหญ่ ชัดเจน) */}
+          <div className="bg-white rounded-[4rem] shadow-sm p-12 border border-white mb-20">
+            <div className="flex justify-between items-center mb-12 px-2">
+               <h4 className="font-black text-[#2B3674] text-4xl uppercase tracking-tight">รายการแจ้งล่าสุด ({filteredReports.length})</h4>
+               <button onClick={fetchReports} className={`btn h-16 px-10 bg-[#4318FF] text-white border-none rounded-[1.5rem] font-black text-xl shadow-lg ${loading ? 'loading' : ''}`}>🔄 รีเฟรชข้อมูล</button>
             </div>
             <div className="overflow-x-auto">
-              <table className="table w-full border-separate border-spacing-y-3">
-                <thead className="text-[#707EAE] text-sm uppercase font-extrabold tracking-widest border-none">
+              <table className="table w-full border-separate border-spacing-y-4">
+                <thead className="text-[#707EAE] text-lg uppercase font-black tracking-[0.2em] border-none">
                   <tr>
-                    <th className="pb-6">รูปถ่าย</th>
-                    <th className="pb-6">ชื่อผู้สูงอายุ</th>
-                    <th className="pb-6 text-center">พิกัด</th>
-                    <th className="pb-6 text-center">สถานะ</th>
-                    <th className="pb-6 text-right">Action</th>
+                    <th className="pb-8">รูปถ่าย</th>
+                    <th className="pb-8">ผู้สูงอายุ</th>
+                    <th className="pb-8 text-center hidden sm:table-cell">แผนที่</th>
+                    <th className="pb-8 text-center">สถานะ</th>
+                    <th className="pb-8 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="text-lg">
+                <tbody className="text-2xl font-bold">
                   {filteredReports.map((r) => (
                     <tr key={r.id} className="group hover:bg-[#F4F7FE] transition-all duration-300">
-                      <td className="p-5 rounded-l-[2.5rem] bg-transparent border-none">
-                        {r.image_url && <img src={r.image_url} onClick={() => showFullImage(r.image_url)} className="w-16 h-16 object-cover rounded-2xl cursor-pointer hover:scale-110 shadow-lg border-2 border-white" />}
+                      <td className="p-6 rounded-l-[3rem] bg-transparent border-none">
+                        {r.image_url && <img src={r.image_url} onClick={() => showFullImage(r.image_url)} className="w-20 h-20 object-cover rounded-[1.5rem] cursor-pointer hover:scale-110 shadow-2xl border-4 border-white" />}
                       </td>
-                      <td className="p-5 bg-transparent border-none font-bold text-[#2B3674] text-xl">
+                      <td className="p-6 bg-transparent border-none font-black text-[#2B3674] text-3xl">
                         {r.patient_name}
-                        <p className="text-xs text-slate-400 font-medium mt-1">{new Date(r.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                        <p className="text-sm text-slate-400 font-bold mt-2 uppercase tracking-widest">{new Date(r.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                       </td>
-                      <td className="p-5 bg-transparent border-none text-center">
+                      <td className="p-6 bg-transparent border-none text-center hidden sm:table-cell">
                         {r.latitude ? (
-                          <a href={`https://www.google.com/maps?q=${r.latitude},${r.longitude}`} target="_blank" rel="noreferrer" className="btn btn-ghost btn-md text-[#4318FF] bg-blue-50 border-blue-100 hover:bg-blue-100 rounded-xl font-extrabold">📍 แผนที่</a>
+                          <a href={`https://www.google.com/maps?q=${r.latitude},${r.longitude}`} target="_blank" rel="noreferrer" className="btn btn-ghost btn-lg text-[#4318FF] bg-blue-50 border-4 border-blue-100 hover:bg-blue-100 rounded-[1.5rem] font-black text-lg">📍 แผนที่</a>
                         ) : (
-                          <span className="text-sm text-slate-300 italic">ไม่มีพิกัด</span>
+                          <span className="text-sm text-slate-300 italic font-bold">ไม่มีพิกัด</span>
                         )}
                       </td>
-                      <td className="p-5 bg-transparent border-none text-center">
-                        <span className={`px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-sm ${r.complication_status === 'ผิดปกติ' ? 'bg-[#FFF5F5] text-[#EE5D50] border border-[#EE5D50]/10' : 'bg-[#F2FFF9] text-[#05CD99] border border-[#05CD99]/10'}`}>
+                      <td className="p-6 bg-transparent border-none text-center">
+                        <span className={`px-10 py-4 rounded-[1.5rem] font-black text-sm uppercase tracking-[0.1em] shadow-md border-2 ${r.complication_status === 'ผิดปกติ' ? 'bg-[#FFF5F5] text-[#EE5D50] border-[#EE5D50]/20' : 'bg-[#F2FFF9] text-[#05CD99] border-[#05CD99]/20'}`}>
                           {r.complication_status}
                         </span>
                       </td>
-                      <td className="p-5 bg-transparent border-none text-right rounded-r-[2.5rem]">
-                        <button onClick={() => handleDelete(r.id)} className="text-[#707EAE] hover:text-[#EE5D50] p-4 transition-colors text-2xl">🗑️</button>
+                      <td className="p-6 bg-transparent border-none text-right rounded-r-[3rem]">
+                        <button onClick={() => handleDelete(r.id)} className="text-[#707EAE] hover:text-[#EE5D50] p-5 transition-colors text-3xl">🗑️</button>
                       </td>
                     </tr>
                   ))}
