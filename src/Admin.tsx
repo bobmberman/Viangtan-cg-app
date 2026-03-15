@@ -5,11 +5,8 @@ import ExcelJS from 'exceljs';
 import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl } from 'react-leaflet';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import L from 'leaflet';
-
-// 🟢 สำคัญมาก! บังคับดึง CSS ของแผนที่เข้ามาโดยตรงเพื่อแก้ปัญหาภาพเทาและปุ่มกดไม่ได้
 import 'leaflet/dist/leaflet.css';
 
-// --- ไอคอนแผนที่ ---
 const markerIcon = new L.Icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -17,16 +14,14 @@ const markerIcon = new L.Icon({
   iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
 });
 
-// --- 🔗 เชื่อมต่อกับ Supabase ---
 const SUPABASE_URL = 'https://bietketdljzltumxfkgc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_o5Ofjv8ask6C1dk-Qe1ihw_g4mqqmUT';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// 🟢 คอมโพเนนต์จัดการแผนที่ (แก้ภาพเทา + ระบบบินไปหาพิกัด)
-const MapUpdater = ({ center }: { center: [number, number] | null }) => {
+// 🟢 อัปเกรดระบบพุ่งเป้าแผนที่ (FlyTo) ให้ฉลาดขึ้น
+const MapUpdater = ({ target }: { target: { lat: number, lng: number, trigger: number } | null }) => {
   const map = useMap();
   
-  // แก้ปัญหาแผนที่สีเทา (บังคับรีเฟรชขนาดแผนที่ตอนโหลดเสร็จ)
   useEffect(() => {
     const timer = setTimeout(() => {
       map.invalidateSize();
@@ -34,12 +29,14 @@ const MapUpdater = ({ center }: { center: [number, number] | null }) => {
     return () => clearTimeout(timer);
   }, [map]);
 
-  // ระบบบินไปหาพิกัด
   useEffect(() => {
-    if (center) {
-      map.flyTo(center, 17, { animate: true, duration: 1.5 });
+    if (target) {
+      // 🟢 หน่วงเวลา 0.4 วินาที ให้หน้าจอเลื่อนขึ้นไปเสร็จก่อน แล้วค่อยให้แผนที่บิน (ลดอาการกระตุก)
+      setTimeout(() => {
+        map.flyTo([target.lat, target.lng], 18, { animate: true, duration: 1.5 });
+      }, 400);
     }
-  }, [center, map]);
+  }, [target, map]);
   
   return null;
 };
@@ -54,7 +51,8 @@ export default function Admin() {
   const [statusFilter, setStatusFilter] = useState('ทั้งหมด');
   const [dateFilter, setDateFilter] = useState('');
 
-  const [selectedLocation, setSelectedLocation] = useState<[number, number] | null>(null);
+  // 🟢 State สำหรับเก็บเป้าหมายที่จะบินไป (ใส่ trigger เข้าไปเพื่อบังคับให้บินทุกครั้งที่กด แม้จะเป็นเป้าหมายเดิม)
+  const [flyToTarget, setFlyToTarget] = useState<{lat: number, lng: number, trigger: number} | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -146,11 +144,17 @@ export default function Admin() {
   }, {});
   const barData = Object.keys(patientStats).map(key => ({ name: key.split(' ')[1] || key, เยี่ยม: patientStats[key] })).slice(0, 5);
 
-  // 🟢 ล็อกพิกัดเริ่มต้นไว้ที่ "ตำบลเวียงตาล" ถาวร (ไม่ดึงพิกัดมั่วจากที่อื่นแล้ว)
   const wiangTanCenter: [number, number] = [18.3245, 99.3245];
 
-  const focusOnMap = (lat: number, lng: number) => {
-    setSelectedLocation([lat, lng]);
+  // 🟢 ฟังก์ชันสั่งแผนที่บิน (แปลงค่าเป็นตัวเลขให้ชัวร์ และใส่ Date.now() เพื่อบังคับให้ทำงานเสมอ)
+  const focusOnMap = (lat: any, lng: any) => {
+    setFlyToTarget({ 
+      lat: Number(lat), 
+      lng: Number(lng), 
+      trigger: Date.now() 
+    });
+    
+    // เลื่อนหน้าจอขึ้นไปดูแผนที่
     const mainArea = document.getElementById('main-scroll-area');
     if (mainArea) {
       mainArea.scrollTo({ top: 0, behavior: 'smooth' });
@@ -263,34 +267,20 @@ export default function Admin() {
                   {loading ? 'กำลังโหลด...' : '🔄 โหลดข้อมูลใหม่'}
                 </button>
               </div>
-              
-              {/* 🟢 ส่วนของแผนที่ */}
               <div className="flex-1 rounded-xl overflow-hidden bg-slate-100 relative z-0">
-                <MapContainer 
-                  center={wiangTanCenter} 
-                  zoom={13} 
-                  scrollWheelZoom={true} 
-                  style={{ height: '100%', width: '100%' }} // บังคับให้แผนที่กางเต็ม Container แน่นอน
-                >
-                  {/* เครื่องมือสลับเลเยอร์แผนที่ */}
+                <MapContainer center={wiangTanCenter} zoom={13} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
                   <LayersControl position="topright">
-                    
-                    {/* ดาวเทียม - ตั้งเป็นค่าเริ่มต้น (checked) */}
                     <LayersControl.BaseLayer checked name="🛰️ แผนที่ดาวเทียม">
                       <TileLayer url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}" attribution="&copy; Google Satellite" />
                     </LayersControl.BaseLayer>
-
-                    {/* ถนน */}
                     <LayersControl.BaseLayer name="🛣️ แผนที่ถนน">
                       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
                     </LayersControl.BaseLayer>
-                    
                   </LayersControl>
 
-                  {/* ระบบบังคับโหลดขนาดภาพและบินหาพิกัด */}
-                  <MapUpdater center={selectedLocation} />
+                  {/* 🟢 เรียกใช้ตัวสั่งแผนที่ให้บิน */}
+                  <MapUpdater target={flyToTarget} />
 
-                  {/* ปักหมุด */}
                   {filteredReports.filter(r => r.latitude && r.longitude).map(r => (
                     <Marker key={r.id} position={[r.latitude, r.longitude]} icon={markerIcon}>
                       <Popup className="font-kanit">
@@ -304,7 +294,6 @@ export default function Admin() {
                   ))}
                 </MapContainer>
               </div>
-
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm p-6 h-[400px] flex flex-col gap-6 border border-slate-100">
@@ -372,7 +361,7 @@ export default function Admin() {
                       <td className="p-3 font-medium text-[#2B3674]">{r.patient_name}</td>
                       <td className="p-3 text-slate-500 text-xs">{new Date(r.created_at).toLocaleDateString('th-TH')}</td>
                       
-                      {/* 🟢 คอลัมน์ปุ่มซูมแผนที่ */}
+                      {/* 🟢 ปุ่มคำสั่งบินไปหาพิกัด (FlyTo) */}
                       <td className="p-3 text-center">
                         {r.latitude ? (
                           <button 
@@ -387,7 +376,7 @@ export default function Admin() {
                       </td>
 
                       <td className="p-3 text-center">
-                        <span className={`px-3 py-1 rounded-md text-[10px] font-bold ${r.complication_status === 'ผิดปกติ' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                        <span className={`px-3 py-1 rounded-md text-[10px] font-bold ${r.complication_status === 'ผิดปกติ' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
                           {r.complication_status}
                         </span>
                       </td>
