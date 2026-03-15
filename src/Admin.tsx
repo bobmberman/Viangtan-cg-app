@@ -21,7 +21,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 export default function Admin() {
   const [reports, setReports] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false); // <-- ตัวแปรตัวปัญหา ตอนนี้เราจะเอามันไปใช้แล้วครับ!
+  const [loading, setLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [time, setTime] = useState(new Date());
 
@@ -42,7 +42,7 @@ export default function Admin() {
   };
 
   const showFullImage = (url: string) => {
-    Swal.fire({ imageUrl: url, showConfirmButton: false, showCloseButton: true, width: 'auto', background: 'rgba(255,255,255,0.95)', padding: '0' });
+    Swal.fire({ imageUrl: url, showConfirmButton: false, showCloseButton: true, width: 'auto', background: 'rgba(255,255,255,0.98)', padding: '0' });
   };
 
   const handleDelete = async (id: string) => {
@@ -124,20 +124,24 @@ export default function Admin() {
     : [18.3283, 99.3174]; 
 
   return (
-    <div className="flex h-screen w-full bg-[#F4F7FE] font-['Kanit'] overflow-hidden">
+    // 🌍 ใช้ fixed inset-0 เพื่อบังคับให้ขอบแนบสนิทกับหน้าจอ 100% ไม่มีช่องว่างแน่นอน
+    <div className="fixed inset-0 flex bg-[#F4F7FE] font-['Kanit'] overflow-hidden">
       
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
         @import url('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
         * { font-family: 'Kanit', sans-serif; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; } /* บังคับให้หน้าจอไม่มีขอบ */
         .leaflet-container { width: 100%; height: 100%; border-radius: 1rem; z-index: 10; }
         input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(0.4); }
       `}</style>
       
+      {/* 🌑 Overlay สำหรับมือถือ */}
       {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#2B3674] text-white transition-transform duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col shadow-2xl lg:shadow-none`}>
-        <div className="p-6 flex items-center gap-3 border-b border-white/10">
+      {/* 🟣 Sidebar: กำหนดความกว้างตายตัว และหดไม่ได้ (shrink-0) */}
+      <aside className={`absolute lg:static inset-y-0 left-0 z-50 w-[280px] bg-[#2B3674] text-white transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} flex flex-col flex-shrink-0 shadow-2xl lg:shadow-none`}>
+        <div className="p-6 flex items-center gap-3 border-b border-white/10 shrink-0">
             <div className="w-10 h-10 bg-[#05CD99] rounded-full flex items-center justify-center font-bold text-white shadow-lg shadow-[#05CD99]/30">V</div>
             <div>
               <h1 className="text-xl font-bold tracking-wider leading-none">Viangtan</h1>
@@ -145,7 +149,7 @@ export default function Admin() {
             </div>
         </div>
         
-        <div className="p-4 mt-4 flex-1">
+        <div className="p-4 mt-4 flex-1 overflow-y-auto">
           <p className="text-[10px] text-slate-400 font-bold mb-3 pl-4 uppercase tracking-wider">Main Menu</p>
           <div className="bg-white text-[#2B3674] p-3.5 rounded-xl flex items-center gap-3 shadow-lg font-bold text-sm cursor-pointer mb-2">
             📊 แดชบอร์ด
@@ -155,7 +159,7 @@ export default function Admin() {
           </div>
         </div>
 
-        <div className="p-4 m-4 bg-white/10 rounded-2xl border border-white/10">
+        <div className="p-4 m-4 bg-white/10 rounded-2xl border border-white/10 shrink-0">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center font-bold">B</div>
             <div className="overflow-hidden">
@@ -169,9 +173,10 @@ export default function Admin() {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative">
+      {/* ⚪ Main Content Area: ยืดหยุ่นเต็มพื้นที่ (flex-1) */}
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative bg-[#F4F7FE]">
         
-        <header className="px-8 py-5 flex flex-wrap gap-4 justify-between items-center bg-white border-b border-slate-100 z-20">
+        <header className="px-8 py-5 flex flex-wrap gap-4 justify-between items-center bg-white border-b border-slate-100 shrink-0 z-20">
           <div className="flex items-center gap-4">
             <button className="w-10 h-10 flex lg:hidden items-center justify-center bg-slate-100 rounded-full text-[#4318FF]" onClick={() => setIsSidebarOpen(true)}>☰</button>
             <div>
@@ -196,7 +201,7 @@ export default function Admin() {
           </div>
         </header>
 
-        <main className="flex-1 p-6 lg:p-8 overflow-y-auto bg-[#F4F7FE]">
+        <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
           
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
             <div className="bg-[#4318FF] p-6 rounded-2xl text-white shadow-lg relative overflow-hidden">
@@ -225,7 +230,6 @@ export default function Admin() {
             <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm p-4 h-[400px] flex flex-col border border-slate-100">
               <div className="flex justify-between items-center mb-4 px-2">
                 <h4 className="font-bold text-[#2B3674] text-sm flex items-center gap-2">📍 แผนที่พิกัดจุดเยี่ยมบ้าน</h4>
-                {/* 🔄 เพิ่มปุ่มรีเฟรชข้อมูลตรงนี้แล้วใช้ตัวแปร loading ครับ! */}
                 <button onClick={fetchReports} disabled={loading} className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-[#4318FF] px-3 py-1 rounded-lg font-bold transition-colors">
                   {loading ? 'กำลังโหลด...' : '🔄 โหลดข้อมูลใหม่'}
                 </button>
