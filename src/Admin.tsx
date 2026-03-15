@@ -107,6 +107,48 @@ export default function Admin() {
     } catch (error) { Swal.fire('Error', 'สร้างไฟล์ไม่สำเร็จ', 'error'); }
   };
 
+  // 🟢 ฟังก์ชันเสกข้อมูลจำลอง 25 รายการ
+  const generateMockData = async () => {
+    Swal.fire({ title: 'กำลังสร้างข้อมูลจำลอง...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+      const mockData = [];
+      const names = ['คุณยาย ทองดี', 'คุณตา บุญมี', 'คุณตา สมชาย', 'คุณยาย สมศรี', 'คุณตา ประเสริฐ', 'คุณยาย มะลิ', 'คุณตา วินัย', 'คุณยาย วันดี', 'คุณตา อำนวย', 'คุณยาย สมใจ'];
+      const acts = ['วัดสัญญาณชีพ', 'ช่วยเหลือการกิน', 'กายภาพบำบัด', 'พูดคุยให้กำลังใจ', 'ทำความสะอาดร่างกาย'];
+      
+      for (let i = 0; i < 25; i++) {
+        const isAbnormal = Math.random() > 0.8; // โอกาสผิดปกติ 20%
+        // สุ่มพิกัดรอบๆ ตำบลเวียงตาล
+        const lat = 18.3245 + (Math.random() - 0.5) * 0.04;
+        const lng = 99.3245 + (Math.random() - 0.5) * 0.04;
+        const randomActs = [acts[Math.floor(Math.random() * acts.length)], acts[Math.floor(Math.random() * acts.length)]];
+        const uniqueActs = [...new Set(randomActs)].join(', ');
+
+        // สุ่มวันที่ย้อนหลังไม่เกิน 7 วัน
+        const pastDate = new Date();
+        pastDate.setDate(pastDate.getDate() - Math.floor(Math.random() * 7));
+
+        mockData.push({
+          patient_name: names[Math.floor(Math.random() * names.length)] + ` (Mock)`,
+          activities: uniqueActs,
+          complication_status: isAbnormal ? 'ผิดปกติ' : 'ปกติ',
+          complication_detail: isAbnormal ? 'ความดันสูงกว่าปกติ มีไข้ต่ำๆ' : '',
+          image_url: `https://picsum.photos/400/300?random=${Date.now() + i}`, // สุ่มรูปภาพ
+          latitude: lat,
+          longitude: lng,
+          created_at: pastDate.toISOString() // สุ่มวันที่เพื่อให้กราฟสวย
+        });
+      }
+
+      const { error } = await supabase.from('cg_reports').insert(mockData);
+      if (error) throw error;
+
+      Swal.fire({ icon: 'success', title: 'สำเร็จ!', text: 'เพิ่มข้อมูลจำลอง 25 รายการเรียบร้อยแล้ว', timer: 2000 });
+      fetchReports(); // โหลดข้อมูลใหม่ทันที
+    } catch (err: any) {
+      Swal.fire('Error', err.message, 'error');
+    }
+  };
+
   useEffect(() => { fetchReports(); }, []);
 
   const filteredReports = reports.filter((report) => {
@@ -157,7 +199,6 @@ export default function Admin() {
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        /* แต่ง Popup ของ Leaflet ให้สวยงาม */
         .leaflet-popup-content-wrapper { border-radius: 1rem !important; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important; }
         .leaflet-popup-content { margin: 12px !important; width: 220px !important; }
       `}</style>
@@ -254,9 +295,15 @@ export default function Admin() {
             <div className="bg-white rounded-2xl shadow-sm p-4 h-[450px] flex flex-col border border-slate-100">
               <div className="flex justify-between items-center mb-4 px-2">
                 <h4 className="font-bold text-[#2B3674] text-sm flex items-center gap-2">📍 แผนที่จุดเยี่ยมบ้าน</h4>
-                <button onClick={fetchReports} disabled={loading} className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-[#4318FF] px-3 py-1 rounded-lg font-bold transition-colors">
-                  {loading ? 'กำลังโหลด...' : '🔄 โหลดข้อมูล'}
-                </button>
+                <div className="flex gap-2">
+                  {/* 🟢 ปุ่มสร้างข้อมูล Mock Data ซ่อนไว้ตรงนี้ */}
+                  <button onClick={generateMockData} className="text-[10px] bg-orange-50 hover:bg-orange-100 text-orange-600 px-3 py-1 rounded-lg font-bold transition-colors">
+                    🛠️ สร้างข้อมูลทดสอบ
+                  </button>
+                  <button onClick={fetchReports} disabled={loading} className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-[#4318FF] px-3 py-1 rounded-lg font-bold transition-colors">
+                    {loading ? 'กำลังโหลด...' : '🔄 โหลดข้อมูล'}
+                  </button>
+                </div>
               </div>
               <div className="flex-1 rounded-xl overflow-hidden bg-slate-100 relative z-0">
                 <MapContainer center={wiangTanCenter} zoom={13} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
@@ -270,13 +317,10 @@ export default function Admin() {
                   </LayersControl>
                   <MapUpdater target={flyToTarget} />
                   
-                  {/* 🟢 อัปเกรด Marker Popup ตรงนี้ ให้มีการ์ดรูปภาพ */}
                   {filteredReports.filter(r => r.latitude && r.longitude).map(r => (
                     <Marker key={r.id} position={[r.latitude, r.longitude]} icon={markerIcon}>
                       <Popup className="font-kanit">
                         <div className="flex flex-col gap-3">
-                          
-                          {/* ส่วนแสดงรูปภาพ (ถ้ามี) */}
                           {r.image_url ? (
                             <div className="w-full h-32 overflow-hidden rounded-lg shadow-sm border border-slate-200">
                               <img src={r.image_url} alt={r.patient_name} className="w-full h-full object-cover" />
@@ -286,8 +330,6 @@ export default function Admin() {
                               <span className="text-xs text-slate-400 font-bold">ไม่มีรูปภาพประกอบ</span>
                             </div>
                           )}
-                          
-                          {/* ส่วนแสดงข้อความรายละเอียด */}
                           <div>
                             <b className="text-[#2B3674] text-base block leading-tight">{r.patient_name}</b>
                             <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed font-medium">📍 {r.activities}</p>
@@ -300,7 +342,6 @@ export default function Admin() {
                               </span>
                             </div>
                           </div>
-
                         </div>
                       </Popup>
                     </Marker>
