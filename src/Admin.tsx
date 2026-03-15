@@ -18,26 +18,17 @@ const SUPABASE_URL = 'https://bietketdljzltumxfkgc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_o5Ofjv8ask6C1dk-Qe1ihw_g4mqqmUT';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// 🟢 อัปเกรดระบบพุ่งเป้าแผนที่ (FlyTo) ให้ฉลาดขึ้น
 const MapUpdater = ({ target }: { target: { lat: number, lng: number, trigger: number } | null }) => {
   const map = useMap();
-  
   useEffect(() => {
-    const timer = setTimeout(() => {
-      map.invalidateSize();
-    }, 500);
+    const timer = setTimeout(() => map.invalidateSize(), 500);
     return () => clearTimeout(timer);
   }, [map]);
-
   useEffect(() => {
     if (target) {
-      // 🟢 หน่วงเวลา 0.4 วินาที ให้หน้าจอเลื่อนขึ้นไปเสร็จก่อน แล้วค่อยให้แผนที่บิน (ลดอาการกระตุก)
-      setTimeout(() => {
-        map.flyTo([target.lat, target.lng], 18, { animate: true, duration: 1.5 });
-      }, 400);
+      setTimeout(() => map.flyTo([target.lat, target.lng], 18, { animate: true, duration: 1.5 }), 400);
     }
   }, [target, map]);
-  
   return null;
 };
 
@@ -46,12 +37,9 @@ export default function Admin() {
   const [loading, setLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [time, setTime] = useState(new Date());
-
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ทั้งหมด');
   const [dateFilter, setDateFilter] = useState('');
-
-  // 🟢 State สำหรับเก็บเป้าหมายที่จะบินไป (ใส่ trigger เข้าไปเพื่อบังคับให้บินทุกครั้งที่กด แม้จะเป็นเป้าหมายเดิม)
   const [flyToTarget, setFlyToTarget] = useState<{lat: number, lng: number, trigger: number} | null>(null);
 
   useEffect(() => {
@@ -146,19 +134,14 @@ export default function Admin() {
 
   const wiangTanCenter: [number, number] = [18.3245, 99.3245];
 
-  // 🟢 ฟังก์ชันสั่งแผนที่บิน (แปลงค่าเป็นตัวเลขให้ชัวร์ และใส่ Date.now() เพื่อบังคับให้ทำงานเสมอ)
   const focusOnMap = (lat: any, lng: any) => {
-    setFlyToTarget({ 
-      lat: Number(lat), 
-      lng: Number(lng), 
-      trigger: Date.now() 
-    });
-    
-    // เลื่อนหน้าจอขึ้นไปดูแผนที่
-    const mainArea = document.getElementById('main-scroll-area');
-    if (mainArea) {
-      mainArea.scrollTo({ top: 0, behavior: 'smooth' });
+    if (!lat || !lng) {
+      Swal.fire({ icon: 'info', title: 'ไม่มีพิกัด', text: 'รายงานนี้ไม่มีการบันทึกพิกัด GPS', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
+      return;
     }
+    setFlyToTarget({ lat: Number(lat), lng: Number(lng), trigger: Date.now() });
+    const mainArea = document.getElementById('main-scroll-area');
+    if (mainArea) mainArea.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -170,6 +153,11 @@ export default function Admin() {
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(0.4); }
         .leaflet-control-layers { border: none !important; border-radius: 12px !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important; padding: 6px; }
+        /* สไตล์สำหรับ Scrollbar ในกล่องกิจกรรมล่าสุด */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       `}</style>
       
       {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>}
@@ -259,12 +247,15 @@ export default function Admin() {
             </div>
           </div>
 
+          {/* 🟢 อัปเกรด Grid เป็น 3 คอลัมน์ (แผนที่จัตุรัส | กิจกรรมล่าสุด | กราฟสถิติ) */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
-            <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm p-4 h-[400px] flex flex-col border border-slate-100">
+            
+            {/* 1. แผนที่พิกัด (สี่เหลี่ยมจัตุรัส) */}
+            <div className="bg-white rounded-2xl shadow-sm p-4 h-[450px] flex flex-col border border-slate-100">
               <div className="flex justify-between items-center mb-4 px-2">
-                <h4 className="font-bold text-[#2B3674] text-sm flex items-center gap-2">📍 แผนที่พิกัดจุดเยี่ยมบ้าน</h4>
+                <h4 className="font-bold text-[#2B3674] text-sm flex items-center gap-2">📍 แผนที่จุดเยี่ยมบ้าน</h4>
                 <button onClick={fetchReports} disabled={loading} className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-[#4318FF] px-3 py-1 rounded-lg font-bold transition-colors">
-                  {loading ? 'กำลังโหลด...' : '🔄 โหลดข้อมูลใหม่'}
+                  {loading ? 'กำลังโหลด...' : '🔄 โหลดข้อมูล'}
                 </button>
               </div>
               <div className="flex-1 rounded-xl overflow-hidden bg-slate-100 relative z-0">
@@ -277,10 +268,7 @@ export default function Admin() {
                       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
                     </LayersControl.BaseLayer>
                   </LayersControl>
-
-                  {/* 🟢 เรียกใช้ตัวสั่งแผนที่ให้บิน */}
                   <MapUpdater target={flyToTarget} />
-
                   {filteredReports.filter(r => r.latitude && r.longitude).map(r => (
                     <Marker key={r.id} position={[r.latitude, r.longitude]} icon={markerIcon}>
                       <Popup className="font-kanit">
@@ -296,7 +284,44 @@ export default function Admin() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm p-6 h-[400px] flex flex-col gap-6 border border-slate-100">
+            {/* 🟢 2. หน้าต่างใหม่: ข้อมูลกิจกรรมล่าสุด (Scroll ได้ + กดแล้วพุ่งไปแผนที่) */}
+            <div className="bg-white rounded-2xl shadow-sm p-4 h-[450px] flex flex-col border border-slate-100">
+              <div className="flex justify-between items-center mb-4 px-2">
+                <h4 className="font-bold text-[#2B3674] text-sm flex items-center gap-2">📝 กิจกรรมล่าสุด</h4>
+                <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg font-bold">อัปเดตเรียลไทม์</span>
+              </div>
+              <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+                {filteredReports.slice(0, 10).map((r) => (
+                  <div 
+                    key={r.id} 
+                    onClick={() => focusOnMap(r.latitude, r.longitude)}
+                    className={`p-3 rounded-xl border flex gap-3 items-center transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${r.complication_status === 'ผิดปกติ' ? 'bg-red-50/30 border-red-100 hover:border-red-300' : 'bg-slate-50 border-slate-100 hover:border-blue-300'}`}
+                  >
+                    {r.image_url ? (
+                      <img src={r.image_url} className="w-12 h-12 rounded-lg object-cover shadow-sm border border-slate-200" />
+                    ) : (
+                      <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-[10px] text-slate-300 shadow-sm border border-slate-200">No Img</div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-[#2B3674] text-sm truncate">{r.patient_name}</p>
+                      <p className="text-[10px] text-slate-500 truncate mt-0.5">{r.activities}</p>
+                      <p className="text-[9px] text-slate-400 mt-1">🕒 {new Date(r.created_at).toLocaleString('th-TH')}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`px-2 py-1 rounded-md text-[9px] font-bold ${r.complication_status === 'ผิดปกติ' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                        {r.complication_status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {filteredReports.length === 0 && (
+                  <div className="text-center text-slate-400 text-sm py-10 font-medium">ยังไม่มีข้อมูลการเยี่ยมบ้าน</div>
+                )}
+              </div>
+            </div>
+
+            {/* 3. กราฟสถิติ */}
+            <div className="bg-white rounded-2xl shadow-sm p-6 h-[450px] flex flex-col gap-6 border border-slate-100">
               <div className="flex-1">
                 <h4 className="font-bold text-[#2B3674] text-xs text-center mb-4">สถิติความถี่การเยี่ยม (คน)</h4>
                 <ResponsiveContainer width="100%" height="80%">
@@ -327,6 +352,7 @@ export default function Admin() {
                 </div>
               </div>
             </div>
+
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
@@ -356,23 +382,18 @@ export default function Admin() {
                   {filteredReports.map((r) => (
                     <tr key={r.id} className="hover:bg-slate-50/50 border-b border-slate-50">
                       <td className="p-3">
-                        {r.image_url ? <img src={r.image_url} onClick={() => showFullImage(r.image_url)} className="w-10 h-10 object-cover rounded-lg cursor-pointer border border-slate-200" /> : '-'}
+                        {r.image_url ? <img src={r.image_url} onClick={() => showFullImage(r.image_url)} className="w-10 h-10 object-cover rounded-lg cursor-pointer border border-slate-200 hover:scale-110 transition-transform" /> : '-'}
                       </td>
                       <td className="p-3 font-medium text-[#2B3674]">{r.patient_name}</td>
                       <td className="p-3 text-slate-500 text-xs">{new Date(r.created_at).toLocaleDateString('th-TH')}</td>
                       
-                      {/* 🟢 ปุ่มคำสั่งบินไปหาพิกัด (FlyTo) */}
                       <td className="p-3 text-center">
-                        {r.latitude ? (
-                          <button 
-                            onClick={() => focusOnMap(r.latitude, r.longitude)} 
-                            className="btn btn-ghost btn-xs text-[#4318FF] bg-blue-50 hover:bg-blue-100 rounded-md font-bold px-3 transition-transform active:scale-95"
-                          >
-                            📍 ซูมดู
-                          </button>
-                        ) : (
-                          <span className="text-[10px] text-slate-300">ไม่มีพิกัด</span>
-                        )}
+                        <button 
+                          onClick={() => focusOnMap(r.latitude, r.longitude)} 
+                          className="btn btn-ghost btn-xs text-[#4318FF] bg-blue-50 hover:bg-blue-100 rounded-md font-bold px-3 transition-transform active:scale-95"
+                        >
+                          📍 ซูมดู
+                        </button>
                       </td>
 
                       <td className="p-3 text-center">
@@ -381,7 +402,7 @@ export default function Admin() {
                         </span>
                       </td>
                       <td className="p-3 text-right">
-                        <button onClick={() => handleDelete(r.id)} className="text-slate-400 hover:text-red-500">🗑️</button>
+                        <button onClick={() => handleDelete(r.id)} className="text-slate-400 hover:text-red-500 p-2">🗑️</button>
                       </td>
                     </tr>
                   ))}
