@@ -153,11 +153,13 @@ export default function Admin() {
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(0.4); }
         .leaflet-control-layers { border: none !important; border-radius: 12px !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important; padding: 6px; }
-        /* สไตล์สำหรับ Scrollbar ในกล่องกิจกรรมล่าสุด */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        /* แต่ง Popup ของ Leaflet ให้สวยงาม */
+        .leaflet-popup-content-wrapper { border-radius: 1rem !important; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important; }
+        .leaflet-popup-content { margin: 12px !important; width: 220px !important; }
       `}</style>
       
       {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>}
@@ -247,10 +249,8 @@ export default function Admin() {
             </div>
           </div>
 
-          {/* 🟢 อัปเกรด Grid เป็น 3 คอลัมน์ (แผนที่จัตุรัส | กิจกรรมล่าสุด | กราฟสถิติ) */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
             
-            {/* 1. แผนที่พิกัด (สี่เหลี่ยมจัตุรัส) */}
             <div className="bg-white rounded-2xl shadow-sm p-4 h-[450px] flex flex-col border border-slate-100">
               <div className="flex justify-between items-center mb-4 px-2">
                 <h4 className="font-bold text-[#2B3674] text-sm flex items-center gap-2">📍 แผนที่จุดเยี่ยมบ้าน</h4>
@@ -269,22 +269,47 @@ export default function Admin() {
                     </LayersControl.BaseLayer>
                   </LayersControl>
                   <MapUpdater target={flyToTarget} />
+                  
+                  {/* 🟢 อัปเกรด Marker Popup ตรงนี้ ให้มีการ์ดรูปภาพ */}
                   {filteredReports.filter(r => r.latitude && r.longitude).map(r => (
                     <Marker key={r.id} position={[r.latitude, r.longitude]} icon={markerIcon}>
                       <Popup className="font-kanit">
-                        <div className="p-1">
-                          <b className="text-[#2B3674]">{r.patient_name}</b><br/>
-                          <span className="text-xs text-slate-500">กิจกรรม: {r.activities}</span><br/>
-                          <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold ${r.complication_status === 'ผิดปกติ' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>{r.complication_status}</span>
+                        <div className="flex flex-col gap-3">
+                          
+                          {/* ส่วนแสดงรูปภาพ (ถ้ามี) */}
+                          {r.image_url ? (
+                            <div className="w-full h-32 overflow-hidden rounded-lg shadow-sm border border-slate-200">
+                              <img src={r.image_url} alt={r.patient_name} className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="w-full h-32 bg-slate-100 rounded-lg flex items-center justify-center border border-slate-200 shadow-sm">
+                              <span className="text-xs text-slate-400 font-bold">ไม่มีรูปภาพประกอบ</span>
+                            </div>
+                          )}
+                          
+                          {/* ส่วนแสดงข้อความรายละเอียด */}
+                          <div>
+                            <b className="text-[#2B3674] text-base block leading-tight">{r.patient_name}</b>
+                            <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed font-medium">📍 {r.activities}</p>
+                            <div className="flex items-center justify-between mt-3">
+                              <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold ${r.complication_status === 'ผิดปกติ' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                {r.complication_status}
+                              </span>
+                              <span className="text-[9px] text-slate-400 font-bold">
+                                {new Date(r.created_at).toLocaleDateString('th-TH')}
+                              </span>
+                            </div>
+                          </div>
+
                         </div>
                       </Popup>
                     </Marker>
                   ))}
+
                 </MapContainer>
               </div>
             </div>
 
-            {/* 🟢 2. หน้าต่างใหม่: ข้อมูลกิจกรรมล่าสุด (Scroll ได้ + กดแล้วพุ่งไปแผนที่) */}
             <div className="bg-white rounded-2xl shadow-sm p-4 h-[450px] flex flex-col border border-slate-100">
               <div className="flex justify-between items-center mb-4 px-2">
                 <h4 className="font-bold text-[#2B3674] text-sm flex items-center gap-2">📝 กิจกรรมล่าสุด</h4>
@@ -320,7 +345,6 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* 3. กราฟสถิติ */}
             <div className="bg-white rounded-2xl shadow-sm p-6 h-[450px] flex flex-col gap-6 border border-slate-100">
               <div className="flex-1">
                 <h4 className="font-bold text-[#2B3674] text-xs text-center mb-4">สถิติความถี่การเยี่ยม (คน)</h4>
