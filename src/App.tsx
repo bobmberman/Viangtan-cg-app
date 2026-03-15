@@ -1,172 +1,225 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
+import ExcelJS from 'exceljs';
 
-// --- 🔗 เชื่อมต่อกับ Supabase ---
 const SUPABASE_URL = 'https://bietketdljzltumxfkgc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_o5Ofjv8ask6C1dk-Qe1ihw_g4mqqmUT';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-export default function App() {
-  const [patientName, setPatientName] = useState('');
-  const [activities, setActivities] = useState<string[]>([]);
-  const [complicationStatus, setComplicationStatus] = useState('ปกติ');
-  const [complicationDetail, setComplicationDetail] = useState('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
+export default function Admin() {
+  const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [time, setTime] = useState(new Date());
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ทั้งหมด');
+  const [dateFilter, setDateFilter] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
-    // ดึงพิกัด GPS ทันที
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => setLocation({ lat: position.coords.latitude, lng: position.coords.longitude }),
-        null, { enableHighAccuracy: true }
-      );
-    }
     return () => clearInterval(timer);
   }, []);
 
-  const handleActivityChange = (activity: string) => {
-    setActivities((prev) =>
-      prev.includes(activity) ? prev.filter((a) => a !== activity) : [...prev, activity]
-    );
+  const fetchReports = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('cg_reports').select('*').order('created_at', { ascending: false });
+    setReports(data || []);
+    setLoading(false);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!patientName || activities.length === 0 || !imageFile) {
-      Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบ', text: 'กรุณากรอกชื่อ เลือกกิจกรรม และถ่ายรูปด้วยครับ', confirmButtonColor: '#4318FF' });
+  const showFullImage = (url: string) => {
+    Swal.fire({ imageUrl: url, imageAlt: 'Visit', showConfirmButton: false, showCloseButton: true, width: 'auto', background: 'transparent', padding: '0' });
+  };
+
+  const handleDelete = async (id: string) => {
+    const result = await Swal.fire({ title: 'ลบรายงาน?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ลบข้อมูล' });
+    if (result.isConfirmed) {
+      await supabase.from('cg_reports').delete().eq('id', id);
+      fetchReports();
+    }
+  };
+
+  const getBase64FromUrl = async (url: string) => {
+    const data = await fetch(url);
+    const blob = await data.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = () => resolve(reader.result);
+    });
+  };
+
+  const exportToExcelWithImages = async () => {
+    if (filteredReports.length === 0) {
+      Swal.fire('ไม่มีข้อมูล', 'ไม่พบข้อมูลที่ตรงตามตัวกรอง', 'info');
       return;
     }
-
-    setLoading(true);
+    Swal.fire({ title: 'กำลังเตรียมไฟล์...', text: 'กรุณารอสักครู่ครับ', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
     try {
-      // Refresh GPS 
-      let finalLat = location?.lat;
-      let finalLng = location?.lng;
-      if ("geolocation" in navigator) {
-        const pos: any = await new Promise((res) => navigator.geolocation.getCurrentPosition(res, null, {enableHighAccuracy: true}));
-        finalLat = pos.coords.latitude;
-        finalLng = pos.coords.longitude;
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('รายงานการเยี่ยม');
+      worksheet.columns = [
+        { header: 'รูปถ่าย', key: 'img', width: 22 },
+        { header: 'ชื่อผู้สูงอายุ', key: 'name', width: 25 },
+        { header: 'วันที่เยี่ยม', key: 'date', width: 15 },
+        { header: 'สถานะ', key: 'status', width: 12 },
+        { header: 'กิจกรรม', key: 'act', width: 35 },
+      ];
+      for (let i = 0; i < filteredReports.length; i++) {
+        const report = filteredReports[i];
+        const row = worksheet.addRow({ name: report.patient_name, date: new Date(report.created_at).toLocaleDateString('th-TH'), status: report.complication_status, act: report.activities });
+        row.height = 95;
+        row.alignment = { vertical: 'middle', horizontal: 'left' };
+        if (report.image_url) {
+          try {
+            const base64: any = await getBase64FromUrl(report.image_url);
+            const imageId = workbook.addImage({ base64: base64.split(',')[1], extension: 'jpeg' });
+            worksheet.addImage(imageId, { tl: { col: 0.1, row: i + 1.1 }, ext: { width: 120, height: 120 } });
+          } catch (e) { console.error("Img Error"); }
+        }
       }
-
-      // Upload Photo
-      const fileExt = imageFile.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from('cg-images').upload(fileName, imageFile);
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage.from('cg-images').getPublicUrl(fileName);
-
-      // Insert Data
-      const { error: insertError } = await supabase.from('cg_reports').insert([{
-        patient_name: patientName,
-        activities: activities.join(', '),
-        complication_status: complicationStatus,
-        complication_detail: complicationStatus === 'ผิดปกติ' ? complicationDetail : '',
-        image_url: publicUrlData.publicUrl,
-        latitude: finalLat,
-        longitude: finalLng
-      }]);
-      if (insertError) throw insertError;
-
-      await Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย!', timer: 2000, showConfirmButton: false });
-      setPatientName(''); setActivities([]); setComplicationStatus('ปกติ'); setComplicationDetail(''); setImageFile(null);
-      (document.getElementById('file-upload') as HTMLInputElement).value = '';
-
-    } catch (error: any) {
-      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: error.message });
-    } finally {
-      setLoading(false);
-    }
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `รายงานเยี่ยมบ้าน_${new Date().getTime()}.xlsx`;
+      link.click();
+      Swal.fire({ icon: 'success', title: 'สำเร็จ!', timer: 1500, showConfirmButton: false });
+    } catch (error) { Swal.fire('Error', 'สร้างไฟล์ไม่สำเร็จ', 'error'); }
   };
 
+  useEffect(() => { fetchReports(); }, []);
+
+  const total = reports.length;
+  const abnormal = reports.filter(r => r.complication_status === 'ผิดปกติ').length;
+  const todayCount = reports.filter(r => new Date(r.created_at).toDateString() === new Date().toDateString()).length;
+
+  const filteredReports = reports.filter((report) => {
+    const matchesName = report.patient_name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'ทั้งหมด' || report.complication_status === statusFilter;
+    const matchesDate = !dateFilter || new Date(report.created_at).toLocaleDateString('en-CA') === dateFilter;
+    return matchesName && matchesStatus && matchesDate;
+  });
+
   return (
-    <div className="min-h-screen bg-slate-50 font-kanit pb-10">
+    // แก้ไข w-screen เป็น w-full และลบ padding/margin ส่วนเกินที่อาจทำให้เกิดแถบดำ
+    <div className="flex h-screen w-full bg-[#F4F7FE] font-kanit overflow-hidden">
       
-      {/* 📱 Mobile App Bar */}
-      <header className="bg-[#4318FF] text-white p-6 rounded-b-[2.5rem] shadow-lg">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-black tracking-tighter uppercase">Viangtan CG</h1>
-            <p className="text-[10px] opacity-70">ระบบบันทึกการเยี่ยมบ้านผู้สูงอายุ</p>
-          </div>
-          <div className="text-right">
-            <span className="text-lg font-bold block leading-none">{time.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</span>
-            <span className="text-[10px] opacity-70">Online</span>
-          </div>
-        </div>
-      </header>
+      {/* 🌑 Overlay สำหรับมือถือ (Z-index 50) */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-[100] lg:hidden backdrop-blur-sm transition-opacity duration-300" 
+          onClick={() => setIsSidebarOpen(false)}
+        ></div>
+      )}
 
-      <main className="px-5 -mt-6">
+      {/* 🟣 Sidebar (ปรับให้ Desktop เป็นส่วนหนึ่งของ Flow เพื่อไม่ให้เกิดช่องว่าง) */}
+      <aside className={`fixed inset-y-0 left-0 z-[110] w-72 bg-gradient-to-b from-[#4318FF] to-[#707EAE] text-white transition-transform duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-8 border-b border-white/10 text-center">
+            <h1 className="text-2xl font-black italic tracking-tighter uppercase">VIANGTAN</h1>
+            <p className="text-[10px] opacity-60 tracking-[0.2em] uppercase">Smart City Dash</p>
+        </div>
+        <nav className="p-6 space-y-3 mt-6">
+          <div className="bg-white/20 p-4 rounded-2xl flex items-center gap-4 shadow-xl">📊 <span className="font-bold">แดชบอร์ดสรุปผล</span></div>
+          <div className="p-4 rounded-2xl flex items-center gap-4 opacity-50 hover:bg-white/10 cursor-pointer">👥 จัดการรายชื่อ</div>
+        </nav>
+        <button className="lg:hidden absolute top-8 right-6 text-white" onClick={() => setIsSidebarOpen(false)}>✕</button>
+      </aside>
+
+      {/* ⚪ Main Content Area (ยืดเต็มพื้นที่ที่เหลือ) */}
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
         
-        {/* 📍 GPS Status Badge */}
-        <div className={`mb-4 p-3 rounded-2xl shadow-sm border text-[11px] font-bold text-center transition-all ${location ? 'bg-white text-green-500 border-green-100' : 'bg-red-50 text-red-500 border-red-100 animate-pulse'}`}>
-          {location ? `📍 พิกัด GPS พร้อมบันทึกแล้ว` : '⚠️ กำลังค้นหาสัญญาณพิกัด...'}
-        </div>
-
-        <div className="bg-white rounded-[2rem] shadow-sm p-6 border border-white">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* รายชื่อ */}
+        {/* Header */}
+        <header className="p-6 flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-4">
+            <button className="w-12 h-12 flex lg:hidden items-center justify-center bg-white rounded-full shadow-md text-[#4318FF]" onClick={() => setIsSidebarOpen(true)}>☰</button>
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">ชื่อผู้สูงอายุ</label>
-              <select className="select select-bordered w-full bg-slate-50 border-none rounded-2xl h-14 font-bold text-[#2B3674]" value={patientName} onChange={(e) => setPatientName(e.target.value)} required>
-                <option value="" disabled>-- เลือกรายชื่อ --</option>
-                <option value="คุณยาย ทองดี มั่งคั่ง">คุณยาย ทองดี มั่งคั่ง</option>
-                <option value="คุณตา บุญมี ศรีสุข">คุณตา บุญมี ศรีสุข</option>
+              <h1 className="text-2xl font-bold text-[#2B3674] leading-none">รายงานการเยี่ยมบ้าน</h1>
+              <p className="text-[#707EAE] text-sm mt-1 font-medium">Executive Management Center</p>
+            </div>
+          </div>
+          <div className="hidden sm:block text-[#4318FF] font-black text-2xl bg-white px-6 py-2 rounded-2xl shadow-sm border border-slate-50">
+            {time.toLocaleTimeString('th-TH')}
+          </div>
+        </header>
+
+        {/* Scrollable Content */}
+        <main className="flex-1 p-6 overflow-y-auto pt-0">
+          
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8 mt-4">
+            <div className="bg-[#4318FF] p-6 rounded-[2rem] text-white shadow-xl"><p className="text-[10px] font-bold opacity-70 uppercase tracking-widest">ทั้งหมด</p><h3 className="text-4xl font-black mt-1">{total} ราย</h3></div>
+            <div className="bg-[#FFB547] p-6 rounded-[2rem] text-[#2B3674] shadow-xl"><p className="text-[10px] font-bold opacity-70 uppercase tracking-widest">ผิดปกติ</p><h3 className="text-4xl font-black mt-1">{abnormal} ราย</h3></div>
+            <div className="bg-[#00B5E2] p-6 rounded-[2rem] text-white shadow-xl"><p className="text-[10px] font-bold opacity-70 uppercase tracking-widest">วันนี้</p><h3 className="text-4xl font-black mt-1">{todayCount} ราย</h3></div>
+            <div className="bg-[#05CD99] p-6 rounded-[2rem] text-white shadow-xl"><p className="text-[10px] font-bold opacity-70 uppercase tracking-widest">ปกติ</p><h3 className="text-4xl font-black mt-1">{total - abnormal} ราย</h3></div>
+          </div>
+
+          {/* Search & Export */}
+          <div className="bg-white rounded-[2rem] shadow-sm p-6 mb-8 border border-white">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <input type="text" placeholder="ค้นหาชื่อ..." className="input bg-[#F4F7FE] border-none rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <select className="select bg-[#F4F7FE] border-none rounded-xl" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <option value="ทั้งหมด">ทั้งหมด</option>
+                <option value="ปกติ">ปกติ</option>
+                <option value="ผิดปกติ">ผิดปกติ</option>
               </select>
-            </div>
-
-            {/* กิจกรรม (แบบปุ่มกดขนาดใหญ่) */}
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">กิจกรรมวันนี้</label>
-              <div className="grid grid-cols-1 gap-2">
-                {['วัดสัญญาณชีพ', 'ช่วยเหลือการกิน', 'กายภาพบำบัด'].map((act) => (
-                  <button 
-                    key={act} 
-                    type="button"
-                    onClick={() => handleActivityChange(act)}
-                    className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${activities.includes(act) ? 'bg-[#E9E3FF] border-[#4318FF] text-[#4318FF]' : 'bg-slate-50 border-transparent text-slate-400'}`}
-                  >
-                    <span className="font-bold">{act}</span>
-                    <span className="text-xl">{activities.includes(act) ? '✅' : '⬜'}</span>
-                  </button>
-                ))}
+              <input type="date" className="input bg-[#F4F7FE] border-none rounded-xl" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
+              <div className="flex gap-2">
+                <button onClick={() => {setSearchTerm(''); setStatusFilter('ทั้งหมด'); setDateFilter('');}} className="btn btn-ghost bg-[#F4F7FE] rounded-xl flex-1 font-bold">ล้าง</button>
+                <button onClick={exportToExcelWithImages} className="btn bg-[#05CD99] border-none rounded-xl flex-1 text-white font-bold shadow-lg shadow-emerald-100">📗 Excel</button>
               </div>
             </div>
+          </div>
 
-            {/* การประเมิน */}
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">การประเมินอาการ</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button type="button" onClick={() => setComplicationStatus('ปกติ')} className={`py-4 rounded-2xl font-black text-sm transition-all ${complicationStatus === 'ปกติ' ? 'bg-[#05CD99] text-white shadow-lg' : 'bg-slate-50 text-slate-300'}`}>✅ ปกติ</button>
-                <button type="button" onClick={() => setComplicationStatus('ผิดปกติ')} className={`py-4 rounded-2xl font-black text-sm transition-all ${complicationStatus === 'ผิดปกติ' ? 'bg-[#EE5D50] text-white shadow-lg' : 'bg-slate-50 text-slate-300'}`}>🚨 ผิดปกติ</button>
-              </div>
+          {/* Table */}
+          <div className="bg-white rounded-[2.5rem] shadow-sm p-8 border border-white mb-10">
+            <div className="flex justify-between items-center mb-8 px-2">
+               <h4 className="font-bold text-[#2B3674] text-xl">รายการแจ้งรายงานล่าสุด ({filteredReports.length})</h4>
+               <button onClick={fetchReports} className={`btn btn-sm bg-[#4318FF] text-white border-none rounded-xl px-6 ${loading ? 'loading' : ''}`}>🔄 รีเฟรช</button>
             </div>
-
-            {complicationStatus === 'ผิดปกติ' && (
-              <textarea className="textarea bg-red-50 border-red-100 rounded-2xl w-full h-24 text-red-600 font-bold placeholder:text-red-200" placeholder="ระบุอาการผิดปกติ..." value={complicationDetail} onChange={(e) => setComplicationDetail(e.target.value)} required></textarea>
-            )}
-
-            {/* รูปถ่าย (Camera) */}
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">ถ่ายรูปขณะเยี่ยม</label>
-              <input id="file-upload" type="file" accept="image/*" capture="environment" className="file-input w-full bg-slate-50 border-none rounded-2xl" onChange={(e) => setImageFile(e.target.files ? e.target.files[0] : null)} required />
-              <p className="text-[9px] text-slate-400 mt-2 px-1">* ระบบจะบันทึกพิกัด GPS ลงในรูปภาพโดยอัตโนมัติ</p>
+            <div className="overflow-x-auto">
+              <table className="table w-full border-separate border-spacing-y-2">
+                <thead className="text-[#707EAE] text-[10px] uppercase font-bold tracking-widest border-none">
+                  <tr>
+                    <th>รูปภาพ</th>
+                    <th>ชื่อผู้สูงอายุ</th>
+                    <th className="hidden sm:table-cell text-center">พิกัด</th>
+                    <th className="text-center">สถานะ</th>
+                    <th className="text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredReports.map((r) => (
+                    <tr key={r.id} className="group hover:bg-[#F4F7FE] transition-all">
+                      <td className="p-4 rounded-l-3xl">
+                        {r.image_url && <img src={r.image_url} onClick={() => showFullImage(r.image_url)} className="w-12 h-12 object-cover rounded-2xl cursor-pointer hover:scale-110 shadow-md border-2 border-white" />}
+                      </td>
+                      <td className="p-4 font-bold text-[#2B3674]">{r.patient_name}</td>
+                      <td className="p-4 text-center hidden sm:table-cell">
+                        {r.latitude && r.longitude ? (
+                          <a href={`https://www.google.com/maps?q=${r.latitude},${r.longitude}`} target="_blank" rel="noreferrer" className="btn btn-ghost btn-xs text-[#4318FF] bg-blue-50 rounded-lg font-bold">📍 แผนที่</a>
+                        ) : (
+                          <span className="text-[10px] text-slate-300 italic">ไม่มีพิกัด</span>
+                        )}
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className={`px-5 py-2 rounded-xl font-bold text-[11px] uppercase tracking-wider ${r.complication_status === 'ผิดปกติ' ? 'bg-[#FFF5F5] text-[#EE5D50]' : 'bg-[#F2FFF9] text-[#05CD99]'}`}>
+                          {r.complication_status}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right rounded-r-3xl">
+                        <button onClick={() => handleDelete(r.id)} className="text-[#707EAE] hover:text-[#EE5D50] p-2 transition-colors">🗑️</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-
-            {/* ปุ่มส่ง */}
-            <button type="submit" className={`btn btn-primary w-full rounded-3xl h-16 text-lg font-black bg-[#4318FF] border-none shadow-2xl shadow-indigo-200 active:scale-95 transition-transform ${loading ? 'loading' : ''}`} disabled={loading}>
-              {loading ? 'กำลังบันทึก...' : '💾 ส่งรายงานการเยี่ยม'}
-            </button>
-
-          </form>
-        </div>
-      </main>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
