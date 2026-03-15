@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
 import ExcelJS from 'exceljs';
-// 🟢 เพิ่ม useMap และ LayersControl
 import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl } from 'react-leaflet';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import L from 'leaflet';
+
+// 🟢 สำคัญมาก! บังคับดึง CSS ของแผนที่เข้ามาโดยตรงเพื่อแก้ปัญหาภาพเทาและปุ่มกดไม่ได้
+import 'leaflet/dist/leaflet.css';
 
 // --- ไอคอนแผนที่ ---
 const markerIcon = new L.Icon({
@@ -20,14 +22,25 @@ const SUPABASE_URL = 'https://bietketdljzltumxfkgc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_o5Ofjv8ask6C1dk-Qe1ihw_g4mqqmUT';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// 🟢 คอมโพเนนต์สำหรับควบคุมการเลื่อนแผนที่ (Fly To)
+// 🟢 คอมโพเนนต์จัดการแผนที่ (แก้ภาพเทา + ระบบบินไปหาพิกัด)
 const MapUpdater = ({ center }: { center: [number, number] | null }) => {
   const map = useMap();
+  
+  // แก้ปัญหาแผนที่สีเทา (บังคับรีเฟรชขนาดแผนที่ตอนโหลดเสร็จ)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [map]);
+
+  // ระบบบินไปหาพิกัด
   useEffect(() => {
     if (center) {
       map.flyTo(center, 17, { animate: true, duration: 1.5 });
     }
   }, [center, map]);
+  
   return null;
 };
 
@@ -41,7 +54,6 @@ export default function Admin() {
   const [statusFilter, setStatusFilter] = useState('ทั้งหมด');
   const [dateFilter, setDateFilter] = useState('');
 
-  // 🟢 State สำหรับเก็บพิกัดที่ถูกคลิก
   const [selectedLocation, setSelectedLocation] = useState<[number, number] | null>(null);
 
   useEffect(() => {
@@ -134,10 +146,9 @@ export default function Admin() {
   }, {});
   const barData = Object.keys(patientStats).map(key => ({ name: key.split(' ')[1] || key, เยี่ยม: patientStats[key] })).slice(0, 5);
 
-  // 🟢 ตั้งค่าพิกัดเริ่มต้นตำบลเวียงตาล จ.ลำปาง
-  const defaultCenter: [number, number] = [18.3312, 99.3174];
+  // 🟢 ล็อกพิกัดเริ่มต้นไว้ที่ "ตำบลเวียงตาล" ถาวร (ไม่ดึงพิกัดมั่วจากที่อื่นแล้ว)
+  const wiangTanCenter: [number, number] = [18.3245, 99.3245];
 
-  // 🟢 ฟังก์ชันสำหรับเลื่อนหน้าจอขึ้นไปบนสุดและซูมแผนที่
   const focusOnMap = (lat: number, lng: number) => {
     setSelectedLocation([lat, lng]);
     const mainArea = document.getElementById('main-scroll-area');
@@ -151,13 +162,10 @@ export default function Admin() {
       
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
-        @import url('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
         * { font-family: 'Kanit', sans-serif; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-        .leaflet-container { width: 100%; height: 100%; border-radius: 1rem; z-index: 10; }
         input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(0.4); }
-        /* ตกแต่งปุ่มเลือก Layer */
-        .leaflet-control-layers { border: none !important; border-radius: 12px !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important; font-family: 'Kanit', sans-serif; padding: 6px; }
+        .leaflet-control-layers { border: none !important; border-radius: 12px !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important; padding: 6px; }
       `}</style>
       
       {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>}
@@ -222,7 +230,6 @@ export default function Admin() {
           </div>
         </header>
 
-        {/* 🟢 กำหนด ID ให้ช่อง Scroll เพื่อให้คำสั่งเลื่อนหน้าจอทำงานได้ */}
         <main id="main-scroll-area" className="flex-1 p-6 lg:p-8 overflow-y-auto scroll-smooth">
           
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
@@ -256,27 +263,34 @@ export default function Admin() {
                   {loading ? 'กำลังโหลด...' : '🔄 โหลดข้อมูลใหม่'}
                 </button>
               </div>
-              <div className="flex-1 rounded-xl overflow-hidden bg-slate-50 relative z-0">
-                
-                {/* 🟢 แผนที่ตั้งต้นที่เวียงตาล */}
-                <MapContainer center={defaultCenter} zoom={13} scrollWheelZoom={true}>
-                  
-                  {/* 🟢 เครื่องมือเลือก Layer */}
+              
+              {/* 🟢 ส่วนของแผนที่ */}
+              <div className="flex-1 rounded-xl overflow-hidden bg-slate-100 relative z-0">
+                <MapContainer 
+                  center={wiangTanCenter} 
+                  zoom={13} 
+                  scrollWheelZoom={true} 
+                  style={{ height: '100%', width: '100%' }} // บังคับให้แผนที่กางเต็ม Container แน่นอน
+                >
+                  {/* เครื่องมือสลับเลเยอร์แผนที่ */}
                   <LayersControl position="topright">
-                    {/* แผนที่ดาวเทียมเป็นค่าเริ่มต้น (checked) */}
+                    
+                    {/* ดาวเทียม - ตั้งเป็นค่าเริ่มต้น (checked) */}
                     <LayersControl.BaseLayer checked name="🛰️ แผนที่ดาวเทียม">
-                      <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" attribution='&copy; Google Maps' />
+                      <TileLayer url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}" attribution="&copy; Google Satellite" />
+                    </LayersControl.BaseLayer>
+
+                    {/* ถนน */}
+                    <LayersControl.BaseLayer name="🛣️ แผนที่ถนน">
+                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
                     </LayersControl.BaseLayer>
                     
-                    {/* แผนที่ถนน */}
-                    <LayersControl.BaseLayer name="🛣️ แผนที่ถนน">
-                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
-                    </LayersControl.BaseLayer>
                   </LayersControl>
 
-                  {/* 🟢 ตัวเลื่อนหน้าจออัตโนมัติ */}
+                  {/* ระบบบังคับโหลดขนาดภาพและบินหาพิกัด */}
                   <MapUpdater center={selectedLocation} />
 
+                  {/* ปักหมุด */}
                   {filteredReports.filter(r => r.latitude && r.longitude).map(r => (
                     <Marker key={r.id} position={[r.latitude, r.longitude]} icon={markerIcon}>
                       <Popup className="font-kanit">
@@ -289,8 +303,8 @@ export default function Admin() {
                     </Marker>
                   ))}
                 </MapContainer>
-
               </div>
+
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm p-6 h-[400px] flex flex-col gap-6 border border-slate-100">
@@ -373,7 +387,7 @@ export default function Admin() {
                       </td>
 
                       <td className="p-3 text-center">
-                        <span className={`px-3 py-1 rounded-md text-[10px] font-bold ${r.complication_status === 'ผิดปกติ' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                        <span className={`px-3 py-1 rounded-md text-[10px] font-bold ${r.complication_status === 'ผิดปกติ' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
                           {r.complication_status}
                         </span>
                       </td>
