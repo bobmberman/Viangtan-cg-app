@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
+import * as XLSX from 'xlsx'; // --- 1. Import Library เพิ่มเติม ---
 
 const SUPABASE_URL = 'https://bietketdljzltumxfkgc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_o5Ofjv8ask6C1dk-Qe1ihw_g4mqqmUT';
@@ -12,7 +13,6 @@ export default function Admin() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [time, setTime] = useState(new Date());
 
-  // States สำหรับการค้นหาและกรอง
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ทั้งหมด');
   const [dateFilter, setDateFilter] = useState('');
@@ -29,26 +29,48 @@ export default function Admin() {
     setLoading(false);
   };
 
-  const showFullImage = (url: string) => {
+  // --- 📊 2. ฟังก์ชันส่งออกไฟล์ Excel ---
+  const exportToExcel = () => {
+    if (filteredReports.length === 0) {
+      Swal.fire('ไม่มีข้อมูล', 'ไม่พบข้อมูลที่ต้องการส่งออก', 'info');
+      return;
+    }
+
+    // เตรียมข้อมูลและเปลี่ยนชื่อหัวตารางเป็นภาษาไทย
+    const dataToExport = filteredReports.map((report) => ({
+      'ชื่อผู้สูงอายุ': report.patient_name,
+      'วันที่เยี่ยม': new Date(report.created_at).toLocaleDateString('th-TH'),
+      'เวลาที่เยี่ยม': new Date(report.created_at).toLocaleTimeString('th-TH'),
+      'กิจกรรมที่ดำเนินการ': report.activities,
+      'สถานะอาการ': report.complication_status,
+      'รายละเอียดเพิ่มเติม': report.complication_detail || '-',
+      'ลิงก์รูปภาพถ่าย': report.image_url
+    }));
+
+    // สร้าง Worksheet
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "รายงานการเยี่ยม");
+
+    // สั่งดาวน์โหลดไฟล์
+    const fileName = `รายงานการเยี่ยม_เทศบาลเวียงตาล_${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
     Swal.fire({
-      imageUrl: url,
-      imageAlt: 'Visit Photo',
-      showConfirmButton: false,
-      showCloseButton: true,
-      width: 'auto',
-      background: 'rgba(255,255,255,0.9)',
-      padding: '0'
+      icon: 'success',
+      title: 'ส่งออกสำเร็จ!',
+      text: 'ดาวน์โหลดไฟล์ Excel เรียบร้อยแล้ว',
+      timer: 1500,
+      showConfirmButton: false
     });
   };
 
+  const showFullImage = (url: string) => {
+    Swal.fire({ imageUrl: url, imageAlt: 'Visit Photo', showConfirmButton: false, showCloseButton: true, width: 'auto', background: 'transparent', padding: '0' });
+  };
+
   const handleDelete = async (id: string) => {
-    const result = await Swal.fire({
-      title: 'ลบรายงานนี้?',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      confirmButtonText: 'ลบข้อมูล'
-    });
+    const result = await Swal.fire({ title: 'ลบรายงานนี้?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ลบข้อมูล' });
     if (result.isConfirmed) {
       await supabase.from('cg_reports').delete().eq('id', id);
       fetchReports();
@@ -57,13 +79,11 @@ export default function Admin() {
 
   useEffect(() => { fetchReports(); }, []);
 
-  // สถิติจากข้อมูลทั้งหมด
   const total = reports.length;
   const abnormal = reports.filter(r => r.complication_status === 'ผิดปกติ').length;
   const normal = total - abnormal;
   const todayCount = reports.filter(r => new Date(r.created_at).toDateString() === new Date().toDateString()).length;
 
-  // กรองข้อมูลตามเงื่อนไขที่ CM เลือก
   const filteredReports = reports.filter((report) => {
     const matchesName = report.patient_name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'ทั้งหมด' || report.complication_status === statusFilter;
@@ -73,14 +93,9 @@ export default function Admin() {
 
   return (
     <div className="flex h-screen w-screen bg-[#F4F7FE] font-kanit overflow-hidden relative">
-      
-      {/* 🌑 Overlay สำหรับมือถือ */}
-      {isSidebarOpen && (
-        <div className="fixed inset-0 bg-black/60 z-[60] lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>
-      )}
+      {isSidebarOpen && <div className="fixed inset-0 bg-black/60 z-[60] lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>}
 
-      {/* 🟣 Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-[70] w-72 bg-gradient-to-b from-[#4318FF] to-[#707EAE] text-white transition-transform duration-300 lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-[70] w-72 bg-gradient-to-b from-[#4318FF] to-[#707EAE] text-white transition-transform duration-300 lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
         <div className="p-8 border-b border-white/10 flex justify-between items-center">
             <div className="text-left">
                 <h1 className="text-2xl font-black italic tracking-tighter uppercase leading-none">VIANGTAN</h1>
@@ -90,53 +105,48 @@ export default function Admin() {
         </div>
         <nav className="p-6 space-y-3 mt-6">
           <div className="bg-white/20 p-4 rounded-2xl flex items-center gap-4 shadow-xl border border-white/10" onClick={() => setIsSidebarOpen(false)}>📊 <span className="font-bold">แดชบอร์ด</span></div>
-          <div className="p-4 rounded-2xl flex items-center gap-4 opacity-50 hover:bg-white/10 cursor-pointer transition-all" onClick={() => setIsSidebarOpen(false)}>👥 จัดการรายชื่อ</div>
+          <div className="p-4 rounded-2xl flex items-center gap-4 opacity-50 hover:bg-white/10 cursor-pointer transition-all" onClick={() => setIsSidebarOpen(false)}>👥 รายชื่อผู้ดูแล</div>
         </nav>
       </aside>
 
-      {/* ⚪ Main Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
-        
         <header className="p-6 flex justify-between items-center sticky top-0 z-40">
           <div className="flex items-center gap-4">
             <button className="w-12 h-12 flex items-center justify-center bg-white rounded-full shadow-md lg:hidden border border-slate-100 text-[#4318FF]" onClick={() => setIsSidebarOpen(true)}>☰</button>
             <div>
-              <h1 className="text-2xl font-bold text-[#2B3674] leading-none">แผงควบคุมหลัก</h1>
-              <p className="text-[#707EAE] text-sm mt-1 font-medium">Executive Command Center</p>
+              <h1 className="text-2xl font-bold text-[#2B3674] leading-none">สรุปข้อมูลการเยี่ยม</h1>
+              <p className="text-[#707EAE] text-sm mt-1 font-medium italic">Data Management Center</p>
             </div>
           </div>
-          <div className="hidden sm:block text-right bg-white px-6 py-2 rounded-2xl shadow-sm">
+          <div className="hidden sm:block text-right bg-white px-6 py-2 rounded-2xl shadow-sm border border-slate-50">
              <span className="text-[#4318FF] font-black text-2xl leading-none block">{time.toLocaleTimeString('th-TH')}</span>
           </div>
         </header>
 
         <main className="flex-1 p-6 overflow-y-auto pt-0">
-          
-          {/* --- 📊 Stat Cards (กลับมาแล้วครับ!) --- */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-[#4318FF] p-6 rounded-[2rem] text-white shadow-xl hover:scale-105 transition-all duration-300 relative overflow-hidden group cursor-default">
-               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest relative z-10">เยี่ยมทั้งหมด</p>
+            <div className="bg-[#4318FF] p-6 rounded-[2rem] text-white shadow-xl hover:scale-105 transition-all relative overflow-hidden group cursor-default">
+               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest relative z-10">ทั้งหมด</p>
                <h3 className="text-4xl font-black mt-1 relative z-10">{total}</h3>
                <div className="absolute -right-4 -bottom-4 text-7xl opacity-10 group-hover:scale-110 transition-transform">📋</div>
             </div>
-            <div className="bg-[#FFB547] p-6 rounded-[2rem] text-[#2B3674] shadow-xl hover:scale-105 transition-all duration-300 relative overflow-hidden group cursor-default border border-white/20">
-               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest relative z-10">ผิดปกติ</p>
-               <h3 className="text-4xl font-black mt-1 relative z-10">{abnormal}</h3>
+            <div className="bg-[#FFB547] p-6 rounded-[2rem] text-[#2B3674] shadow-xl hover:scale-105 transition-all relative overflow-hidden group cursor-default border border-white/20">
+               <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest relative z-10 text-[#2B3674]">ผิดปกติ</p>
+               <h3 className="text-4xl font-black mt-1 relative z-10 text-[#2B3674]">{abnormal}</h3>
                <div className="absolute -right-4 -bottom-4 text-7xl opacity-10 group-hover:scale-110 transition-transform text-[#2B3674]">🚨</div>
             </div>
-            <div className="bg-[#00B5E2] p-6 rounded-[2rem] text-white shadow-xl hover:scale-105 transition-all duration-300 relative overflow-hidden group cursor-default">
+            <div className="bg-[#00B5E2] p-6 rounded-[2rem] text-white shadow-xl hover:scale-105 transition-all relative overflow-hidden group cursor-default">
                <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest relative z-10">เคสใหม่วันนี้</p>
                <h3 className="text-4xl font-black mt-1 relative z-10">{todayCount}</h3>
                <div className="absolute -right-4 -bottom-4 text-7xl opacity-10 group-hover:scale-110 transition-transform">⚡</div>
             </div>
-            <div className="bg-[#05CD99] p-6 rounded-[2rem] text-white shadow-xl hover:scale-105 transition-all duration-300 relative overflow-hidden group cursor-default">
+            <div className="bg-[#05CD99] p-6 rounded-[2rem] text-white shadow-xl hover:scale-105 transition-all relative overflow-hidden group cursor-default">
                <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest relative z-10">สถานะปกติ</p>
                <h3 className="text-4xl font-black mt-1 relative z-10">{normal}</h3>
                <div className="absolute -right-4 -bottom-4 text-7xl opacity-10 group-hover:scale-110 transition-transform">✅</div>
             </div>
           </div>
 
-          {/* --- 🔍 Search & Filter Panel --- */}
           <div className="bg-white rounded-[2rem] shadow-sm p-6 mb-8 border border-white">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="form-control">
@@ -155,13 +165,14 @@ export default function Admin() {
                 <label className="label text-[10px] font-bold text-[#707EAE] uppercase">วันที่</label>
                 <input type="date" className="input bg-[#F4F7FE] border-none rounded-xl" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
               </div>
-              <div className="flex items-end">
-                <button onClick={() => {setSearchTerm(''); setStatusFilter('ทั้งหมด'); setDateFilter('');}} className="btn btn-ghost bg-[#F4F7FE] rounded-xl w-full text-[#707EAE] font-bold">ล้างตัวกรอง</button>
+              <div className="flex items-end gap-2">
+                <button onClick={() => {setSearchTerm(''); setStatusFilter('ทั้งหมด'); setDateFilter('');}} className="btn btn-ghost bg-[#F4F7FE] rounded-xl flex-1 text-[#707EAE] font-bold">ล้าง</button>
+                {/* --- 🔘 ปุ่ม Excel ใหม่ --- */}
+                <button onClick={exportToExcel} className="btn bg-green-500 hover:bg-green-600 border-none rounded-xl flex-1 text-white font-bold shadow-lg shadow-green-100">📗 Excel</button>
               </div>
             </div>
           </div>
 
-          {/* --- 📜 Table List --- */}
           <div className="bg-white rounded-[2.5rem] shadow-sm p-8 border border-white">
             <div className="flex justify-between items-center mb-8 px-2">
                <h4 className="font-bold text-[#2B3674] text-xl">รายการแจ้งรายงาน ({filteredReports.length})</h4>
@@ -182,7 +193,7 @@ export default function Admin() {
                   {filteredReports.map((r) => (
                     <tr key={r.id} className="hover:bg-[#F4F7FE] transition-all duration-300">
                       <td className="p-4 rounded-l-3xl">
-                        {r.image_url && <img src={r.image_url} onClick={() => showFullImage(r.image_url)} className="w-12 h-12 object-cover rounded-2xl cursor-pointer hover:scale-110 transition-transform shadow-md" />}
+                        {r.image_url && <img src={r.image_url} onClick={() => showFullImage(r.image_url)} className="w-12 h-12 object-cover rounded-2xl cursor-pointer hover:scale-110 shadow-md" />}
                       </td>
                       <td className="p-4 font-bold text-[#2B3674] text-base">{r.patient_name}</td>
                       <td className="p-4 text-[#707EAE] font-medium hidden sm:table-cell">{new Date(r.created_at).toLocaleDateString('th-TH')}</td>
