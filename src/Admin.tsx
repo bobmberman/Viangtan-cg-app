@@ -71,7 +71,7 @@ export default function Admin() {
   };
 
   const handleDelete = async (id: string) => {
-    const result = await Swal.fire({ title: 'ยืนยันการลบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ลบข้อมูล' });
+    const result = await Swal.fire({ title: 'ยืนยันการลบ?', text: "ข้อมูลจะถูกลบออกจากระบบอย่างถาวร", icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ลบข้อมูล' });
     if (result.isConfirmed) {
       await supabase.from('cg_reports').delete().eq('id', id);
       fetchReports();
@@ -199,7 +199,7 @@ export default function Admin() {
     }
     setFlyToTarget({ lat: Number(lat), lng: Number(lng), trigger: Date.now() });
     
-    // ไฮไลท์แถวในตาราง 3 วินาที
+    // ไฮไลท์แถวในตารางและรายการล่าสุด 3 วินาที
     setHighlightedId(id);
     setTimeout(() => setHighlightedId(null), 3000);
     
@@ -313,9 +313,11 @@ export default function Admin() {
             </div>
           </div>
 
+          {/* --- Grid กลาง: แผนที่ / กิจกรรมล่าสุด / สถิติ --- */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
             
-            <div className="bg-white rounded-2xl shadow-sm p-4 h-[450px] flex flex-col border border-slate-100 xl:col-span-2">
+            {/* 1. แผนที่ */}
+            <div className="bg-white rounded-2xl shadow-sm p-4 h-[450px] flex flex-col border border-slate-100">
               <div className="flex justify-between items-center mb-4 px-2">
                 <h4 className="font-bold text-[#2B3674] text-sm flex items-center gap-2">📍 แผนที่จุดเยี่ยมบ้าน</h4>
                 <div className="flex gap-2">
@@ -368,11 +370,47 @@ export default function Admin() {
                       </Popup>
                     </Marker>
                   ))}
-
                 </MapContainer>
               </div>
             </div>
 
+            {/* 2. กิจกรรมล่าสุด (คืนมาให้แล้วครับ) */}
+            <div className="bg-white rounded-2xl shadow-sm p-4 h-[450px] flex flex-col border border-slate-100">
+              <div className="flex justify-between items-center mb-4 px-2">
+                <h4 className="font-bold text-[#2B3674] text-sm flex items-center gap-2">📝 กิจกรรมล่าสุด</h4>
+                <span className="text-[10px] bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full font-bold">10 รายการล่าสุด</span>
+              </div>
+              <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+                {filteredReports.slice(0, 10).map((r) => (
+                  <div 
+                    key={r.id} 
+                    onClick={() => focusOnMap(r.latitude, r.longitude, r.id)}
+                    className={`p-3.5 rounded-xl border flex gap-3 items-center transition-all cursor-pointer hover:shadow-md ${r.complication_status === 'ผิดปกติ' ? 'bg-orange-50/30 border-orange-100 hover:border-orange-300' : 'bg-slate-50 border-slate-100 hover:border-indigo-200'} ${highlightedId === r.id ? 'ring-2 ring-indigo-400' : ''}`}
+                  >
+                    {r.image_url ? (
+                      <img src={r.image_url} className="w-12 h-12 rounded-lg object-cover shadow-sm border border-slate-200 shrink-0" />
+                    ) : (
+                      <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-[10px] text-slate-300 shadow-sm border border-slate-200 shrink-0">No Img</div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-[#2B3674] text-sm truncate">{r.patient_name}</p>
+                      <p className="text-[10px] text-slate-500 truncate mt-0.5">{r.activities}</p>
+                      <p className="text-[9px] text-slate-400 mt-1 font-medium">🕒 {new Date(r.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className={`px-2 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider ${r.complication_status === 'ผิดปกติ' ? 'bg-orange-100 text-orange-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                        {r.complication_status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {filteredReports.length === 0 && (
+                  <div className="text-center text-slate-400 text-sm py-10 font-medium">ยังไม่มีข้อมูลการเยี่ยมบ้าน</div>
+                )}
+              </div>
+            </div>
+
+            {/* 3. กราฟสถิติ */}
             <div className="bg-white rounded-2xl shadow-sm p-6 h-[450px] flex flex-col gap-6 border border-slate-100">
               <div className="flex-1">
                 <h4 className="font-bold text-[#2B3674] text-xs text-center mb-4">สถิติความถี่การเยี่ยม (คน)</h4>
@@ -420,7 +458,6 @@ export default function Admin() {
               
               <input type="date" className="input input-bordered bg-slate-50 h-10 text-sm w-40 border-slate-200" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
               
-              {/* Dropdown เลือกจำนวนแถว (Rows Per Page) */}
               <select className="select select-bordered bg-white h-10 text-xs w-32 border-slate-200 font-bold text-slate-500" value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))}>
                 <option value={10}>หน้าละ 10</option>
                 <option value={20}>หน้าละ 20</option>
@@ -444,7 +481,6 @@ export default function Admin() {
                 <tbody className="text-sm">
                   {currentItems.map((r) => (
                     <tr key={r.id} className={`group border-none transition-all duration-300 hover:shadow-md ${highlightedId === r.id ? 'row-highlight' : 'bg-slate-50/40'}`}>
-                      {/* ข้อมูลรูปและชื่อ */}
                       <td className="px-4 py-3 rounded-l-2xl border-y border-l border-slate-100 group-hover:bg-white group-hover:border-slate-200 transition-colors">
                         <div className="flex items-center gap-3">
                           <div className="relative">
@@ -453,7 +489,6 @@ export default function Admin() {
                             ) : (
                               <div className="w-12 h-12 bg-slate-200 rounded-xl flex items-center justify-center text-[10px] text-slate-400 border border-slate-300">No img</div>
                             )}
-                            {/* Status Dot มุมรูป */}
                             <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white ${r.complication_status === 'ผิดปกติ' ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
                           </div>
                           <div>
@@ -463,20 +498,17 @@ export default function Admin() {
                         </div>
                       </td>
                       
-                      {/* วันที่และเวลา */}
                       <td className="px-4 py-3 text-center border-y border-slate-100 group-hover:bg-white group-hover:border-slate-200 transition-colors">
                         <p className="font-bold text-[#2B3674] text-sm">{new Date(r.created_at).toLocaleDateString('th-TH')}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">{new Date(r.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</p>
                       </td>
 
-                      {/* สถานะ (Badge) */}
                       <td className="px-4 py-3 text-center border-y border-slate-100 group-hover:bg-white group-hover:border-slate-200 transition-colors">
                         <span className={`px-3 py-1.5 rounded-lg text-[10px] font-bold ${r.complication_status === 'ผิดปกติ' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
                           {r.complication_status}
                         </span>
                       </td>
 
-                      {/* ปุ่มจัดการ */}
                       <td className="px-4 py-3 text-right rounded-r-2xl border-y border-r border-slate-100 group-hover:bg-white group-hover:border-slate-200 transition-colors">
                         <div className="flex justify-end gap-1.5">
                           <button 
@@ -511,7 +543,7 @@ export default function Admin() {
               )}
             </div>
 
-            {/* --- Pagination Controls (SaaS Style) --- */}
+            {/* --- Pagination Controls --- */}
             {filteredReports.length > 0 && (
               <div className="mt-4 flex flex-col md:flex-row items-center justify-between gap-4 border-t border-slate-100 pt-6">
                 <p className="text-sm text-slate-500 font-medium">
@@ -563,7 +595,7 @@ export default function Admin() {
         </main>
       </div>
 
-      {/* --- Detail Modal (หน้าต่างแสดงรายละเอียด) --- */}
+      {/* --- Detail Modal --- */}
       {selectedReport && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-2xl rounded-[2rem] overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-200">
@@ -575,7 +607,6 @@ export default function Admin() {
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold">ไม่มีรูปถ่ายประกอบ</div>
               )}
-              {/* Gradient Overlay for Text Readability */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
               <div className="absolute bottom-6 left-8 text-white pr-8">
                 <h2 className="text-3xl font-bold">{selectedReport.patient_name}</h2>
