@@ -42,6 +42,12 @@ export default function Admin() {
   const [dateFilter, setDateFilter] = useState('');
   const [flyToTarget, setFlyToTarget] = useState<{lat: number, lng: number, trigger: number} | null>(null);
 
+  // --- States ใหม่ที่เพิ่มเข้ามา ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10); // สำหรับเลือกจำนวนแถว
+  const [selectedReport, setSelectedReport] = useState<any | null>(null); // สำหรับ Detail Modal
+  const [highlightedId, setHighlightedId] = useState<string | null>(null); // สำหรับ Row Highlighting
+
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -107,7 +113,6 @@ export default function Admin() {
     } catch (error) { Swal.fire('Error', 'สร้างไฟล์ไม่สำเร็จ', 'error'); }
   };
 
-  // 🟢 ฟังก์ชันเสกข้อมูลจำลอง 25 รายการ
   const generateMockData = async () => {
     Swal.fire({ title: 'กำลังสร้างข้อมูลจำลอง...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
@@ -116,14 +121,11 @@ export default function Admin() {
       const acts = ['วัดสัญญาณชีพ', 'ช่วยเหลือการกิน', 'กายภาพบำบัด', 'พูดคุยให้กำลังใจ', 'ทำความสะอาดร่างกาย'];
       
       for (let i = 0; i < 25; i++) {
-        const isAbnormal = Math.random() > 0.8; // โอกาสผิดปกติ 20%
-        // สุ่มพิกัดรอบๆ ตำบลเวียงตาล
+        const isAbnormal = Math.random() > 0.8;
         const lat = 18.3245 + (Math.random() - 0.5) * 0.04;
         const lng = 99.3245 + (Math.random() - 0.5) * 0.04;
         const randomActs = [acts[Math.floor(Math.random() * acts.length)], acts[Math.floor(Math.random() * acts.length)]];
         const uniqueActs = [...new Set(randomActs)].join(', ');
-
-        // สุ่มวันที่ย้อนหลังไม่เกิน 7 วัน
         const pastDate = new Date();
         pastDate.setDate(pastDate.getDate() - Math.floor(Math.random() * 7));
 
@@ -131,19 +133,17 @@ export default function Admin() {
           patient_name: names[Math.floor(Math.random() * names.length)] + ` (Mock)`,
           activities: uniqueActs,
           complication_status: isAbnormal ? 'ผิดปกติ' : 'ปกติ',
-          complication_detail: isAbnormal ? 'ความดันสูงกว่าปกติ มีไข้ต่ำๆ' : '',
-          image_url: `https://picsum.photos/400/300?random=${Date.now() + i}`, // สุ่มรูปภาพ
+          complication_detail: isAbnormal ? 'ความดันสูงกว่าปกติ มีไข้ต่ำๆ และบ่นปวดหัว' : '',
+          image_url: `https://picsum.photos/400/300?random=${Date.now() + i}`,
           latitude: lat,
           longitude: lng,
-          created_at: pastDate.toISOString() // สุ่มวันที่เพื่อให้กราฟสวย
+          created_at: pastDate.toISOString()
         });
       }
-
       const { error } = await supabase.from('cg_reports').insert(mockData);
       if (error) throw error;
-
       Swal.fire({ icon: 'success', title: 'สำเร็จ!', text: 'เพิ่มข้อมูลจำลอง 25 รายการเรียบร้อยแล้ว', timer: 2000 });
-      fetchReports(); // โหลดข้อมูลใหม่ทันที
+      fetchReports();
     } catch (err: any) {
       Swal.fire('Error', err.message, 'error');
     }
@@ -157,6 +157,14 @@ export default function Admin() {
     const matchesDate = !dateFilter || new Date(report.created_at).toLocaleDateString('en-CA') === dateFilter;
     return matchesName && matchesStatus && matchesDate;
   });
+
+  // --- Logic การแบ่งหน้า (Pagination) ---
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredReports.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredReports.length / itemsPerPage);
+
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter, dateFilter, itemsPerPage]);
 
   const total = filteredReports.length;
   const abnormal = filteredReports.filter(r => r.complication_status === 'ผิดปกติ').length;
@@ -176,12 +184,17 @@ export default function Admin() {
 
   const wiangTanCenter: [number, number] = [18.3245, 99.3245];
 
-  const focusOnMap = (lat: any, lng: any) => {
+  const focusOnMap = (lat: any, lng: any, id: string) => {
     if (!lat || !lng) {
       Swal.fire({ icon: 'info', title: 'ไม่มีพิกัด', text: 'รายงานนี้ไม่มีการบันทึกพิกัด GPS', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
       return;
     }
     setFlyToTarget({ lat: Number(lat), lng: Number(lng), trigger: Date.now() });
+    
+    // --- จุดที่ 3: Row Highlighting ---
+    setHighlightedId(id);
+    setTimeout(() => setHighlightedId(null), 3000); // ไฮไลท์ไว้ 3 วินาที
+
     const mainArea = document.getElementById('main-scroll-area');
     if (mainArea) mainArea.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -192,15 +205,9 @@ export default function Admin() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
         * { font-family: 'Kanit', sans-serif; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-        input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(0.4); }
-        .leaflet-control-layers { border: none !important; border-radius: 12px !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important; padding: 6px; }
+        .row-active { background-color: #EBF1FF !important; transition: background-color 0.4s ease; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        .leaflet-popup-content-wrapper { border-radius: 1rem !important; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important; }
-        .leaflet-popup-content { margin: 12px !important; width: 220px !important; }
       `}</style>
       
       {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>}
@@ -213,28 +220,9 @@ export default function Admin() {
               <p className="text-[10px] opacity-70 tracking-widest mt-1">SmartCity</p>
             </div>
         </div>
-        
-        <div className="p-4 mt-4 flex-1 overflow-y-auto">
-          <p className="text-[10px] text-slate-400 font-bold mb-3 pl-4 uppercase tracking-wider">Main Menu</p>
-          <div className="bg-white text-[#2B3674] p-3.5 rounded-xl flex items-center gap-3 shadow-lg font-bold text-sm cursor-pointer mb-2">
-            📊 แดชบอร์ด
-          </div>
-          <div className="text-white/60 hover:bg-white/10 p-3.5 rounded-xl flex items-center gap-3 font-medium text-sm cursor-pointer transition-all hover:text-white">
-            👥 จัดการผู้ใช้งาน
-          </div>
-        </div>
-
-        <div className="p-4 m-4 bg-white/10 rounded-2xl border border-white/10 shrink-0">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center font-bold">B</div>
-            <div className="overflow-hidden">
-              <p className="text-sm font-bold truncate">Adisak (Beum)</p>
-              <p className="text-[10px] text-[#05CD99] font-bold">● Online</p>
-            </div>
-          </div>
-          <button className="w-full py-2 bg-white text-[#2B3674] text-xs font-bold rounded-lg hover:bg-slate-100 transition-colors">
-            [→ Logout
-          </button>
+        <div className="p-4 mt-4 flex-1">
+          <div className="bg-white text-[#2B3674] p-3.5 rounded-xl flex items-center gap-3 shadow-lg font-bold text-sm cursor-pointer mb-2">📊 แดชบอร์ด</div>
+          <div className="text-white/60 hover:bg-white/10 p-3.5 rounded-xl flex items-center gap-3 font-medium text-sm cursor-pointer">👥 จัดการผู้ใช้งาน</div>
         </div>
       </aside>
 
@@ -243,241 +231,213 @@ export default function Admin() {
         <header className="px-8 py-5 flex flex-wrap gap-4 justify-between items-center bg-white border-b border-slate-100 shrink-0 z-20">
           <div className="flex items-center gap-4">
             <button className="w-10 h-10 flex lg:hidden items-center justify-center bg-slate-100 rounded-full text-[#4318FF]" onClick={() => setIsSidebarOpen(true)}>☰</button>
-            <div>
-              <h1 className="text-xl font-bold text-[#2B3674]">ภาพรวมระบบเยี่ยมบ้าน</h1>
-              <p className="text-[#707EAE] text-[11px] font-medium uppercase tracking-widest mt-0.5">Executive Command Center</p>
-            </div>
+            <h1 className="text-xl font-bold text-[#2B3674]">ระบบสารสนเทศเยี่ยมบ้าน</h1>
           </div>
-          
-          <div className="hidden md:flex items-center gap-3 bg-white px-6 py-2 rounded-full shadow-[0_0_15px_rgba(0,0,0,0.05)] border border-slate-100">
+          <div className="flex items-center gap-3 bg-white px-6 py-2 rounded-full shadow-sm border border-slate-100">
             <div className="text-[#4318FF] font-bold text-lg tabular-nums">{time.toLocaleTimeString('th-TH')}</div>
-            <div className="w-px h-6 bg-slate-200"></div>
-            <div className="text-xs text-slate-400 font-medium">{time.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
-            <span className="text-xl opacity-30 ml-1">🕒</span>
-          </div>
-
-          <div className="hidden sm:flex items-center gap-3">
-             <div className="text-right">
-               <p className="text-sm font-bold text-[#2B3674]">Adisak (Beum)</p>
-               <p className="text-[10px] text-slate-400 font-medium">ผู้ดูแลระบบ</p>
-             </div>
-             <div className="w-10 h-10 bg-[#4318FF] text-white rounded-full flex items-center justify-center font-bold">👤</div>
           </div>
         </header>
 
-        <main id="main-scroll-area" className="flex-1 p-6 lg:p-8 overflow-y-auto scroll-smooth">
+        <main id="main-scroll-area" className="flex-1 p-6 lg:p-8 overflow-y-auto scroll-smooth custom-scrollbar">
           
+          {/* Dashboard Summary Widgets */}
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-            <div className="bg-[#4318FF] p-6 rounded-2xl text-white shadow-lg relative overflow-hidden">
-               <p className="text-xs font-medium opacity-80 mb-2">ทั้งหมด</p>
+            <div className="bg-[#4318FF] p-6 rounded-2xl text-white shadow-lg">
+               <p className="text-xs opacity-80 mb-1">ทั้งหมด</p>
                <h3 className="text-4xl font-bold">{total}</h3>
-               <div className="absolute bottom-6 left-6 right-10 h-1 bg-white/30 rounded-full"><div className="w-full h-full bg-white rounded-full"></div></div>
             </div>
-            <div className="bg-[#FFB547] p-6 rounded-2xl text-white shadow-lg relative overflow-hidden">
-               <p className="text-xs font-medium opacity-80 mb-2">ผิดปกติ</p>
+            <div className="bg-[#FFB547] p-6 rounded-2xl text-white shadow-lg">
+               <p className="text-xs opacity-80 mb-1">ผิดปกติ</p>
                <h3 className="text-4xl font-bold">{abnormal}</h3>
-               <div className="absolute bottom-6 left-6 right-10 h-1 bg-white/30 rounded-full"><div className="w-2/3 h-full bg-white rounded-full"></div></div>
             </div>
-            <div className="bg-[#00B5E2] p-6 rounded-2xl text-white shadow-lg relative overflow-hidden">
-               <p className="text-xs font-medium opacity-80 mb-2">เคสใหม่วันนี้</p>
+            <div className="bg-[#00B5E2] p-6 rounded-2xl text-white shadow-lg">
+               <p className="text-xs opacity-80 mb-1">วันนี้</p>
                <h3 className="text-4xl font-bold">{todayCount}</h3>
-               <div className="absolute bottom-6 left-6 right-10 h-1 bg-white/30 rounded-full"><div className="w-1/4 h-full bg-white rounded-full"></div></div>
             </div>
-            <div className="bg-[#05CD99] p-6 rounded-2xl text-white shadow-lg relative overflow-hidden">
-               <p className="text-xs font-medium opacity-80 mb-2">ปกติ</p>
+            <div className="bg-[#05CD99] p-6 rounded-2xl text-white shadow-lg">
+               <p className="text-xs opacity-80 mb-1">ปกติ</p>
                <h3 className="text-4xl font-bold">{normal}</h3>
-               <div className="absolute bottom-6 left-6 right-10 h-1 bg-white/30 rounded-full"><div className="w-4/5 h-full bg-white rounded-full"></div></div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
-            
-            <div className="bg-white rounded-2xl shadow-sm p-4 h-[450px] flex flex-col border border-slate-100">
+            <div className="bg-white rounded-2xl shadow-sm p-4 h-[450px] flex flex-col border border-slate-100 xl:col-span-2">
               <div className="flex justify-between items-center mb-4 px-2">
-                <h4 className="font-bold text-[#2B3674] text-sm flex items-center gap-2">📍 แผนที่จุดเยี่ยมบ้าน</h4>
+                <h4 className="font-bold text-[#2B3674] text-sm">📍 แผนที่จุดเยี่ยมบ้าน</h4>
                 <div className="flex gap-2">
-                  {/* 🟢 ปุ่มสร้างข้อมูล Mock Data ซ่อนไว้ตรงนี้ */}
-                  <button onClick={generateMockData} className="text-[10px] bg-orange-50 hover:bg-orange-100 text-orange-600 px-3 py-1 rounded-lg font-bold transition-colors">
-                    🛠️ สร้างข้อมูลทดสอบ
-                  </button>
-                  <button onClick={fetchReports} disabled={loading} className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-[#4318FF] px-3 py-1 rounded-lg font-bold transition-colors">
-                    {loading ? 'กำลังโหลด...' : '🔄 โหลดข้อมูล'}
-                  </button>
+                  <button onClick={generateMockData} className="text-[10px] bg-orange-50 text-orange-600 px-3 py-1 rounded-lg font-bold">🛠️ จำลองข้อมูล</button>
+                  <button onClick={fetchReports} disabled={loading} className="text-[10px] bg-indigo-50 text-[#4318FF] px-3 py-1 rounded-lg font-bold">🔄 อัปเดต</button>
                 </div>
               </div>
-              <div className="flex-1 rounded-xl overflow-hidden bg-slate-100 relative z-0">
-                <MapContainer center={wiangTanCenter} zoom={13} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
-                  <LayersControl position="topright">
-                    <LayersControl.BaseLayer checked name="🛰️ แผนที่ดาวเทียม">
-                      <TileLayer url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}" attribution="&copy; Google Satellite" />
-                    </LayersControl.BaseLayer>
-                    <LayersControl.BaseLayer name="🛣️ แผนที่ถนน">
-                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
-                    </LayersControl.BaseLayer>
-                  </LayersControl>
+              <div className="flex-1 rounded-xl overflow-hidden bg-slate-100">
+                <MapContainer center={wiangTanCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                   <MapUpdater target={flyToTarget} />
-                  
                   {filteredReports.filter(r => r.latitude && r.longitude).map(r => (
                     <Marker key={r.id} position={[r.latitude, r.longitude]} icon={markerIcon}>
-                      <Popup className="font-kanit">
-                        <div className="flex flex-col gap-3">
-                          {r.image_url ? (
-                            <div className="w-full h-32 overflow-hidden rounded-lg shadow-sm border border-slate-200">
-                              <img src={r.image_url} alt={r.patient_name} className="w-full h-full object-cover" />
-                            </div>
-                          ) : (
-                            <div className="w-full h-32 bg-slate-100 rounded-lg flex items-center justify-center border border-slate-200 shadow-sm">
-                              <span className="text-xs text-slate-400 font-bold">ไม่มีรูปภาพประกอบ</span>
-                            </div>
-                          )}
-                          <div>
-                            <b className="text-[#2B3674] text-base block leading-tight">{r.patient_name}</b>
-                            <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed font-medium">📍 {r.activities}</p>
-                            <div className="flex items-center justify-between mt-3">
-                              <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold ${r.complication_status === 'ผิดปกติ' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
-                                {r.complication_status}
-                              </span>
-                              <span className="text-[9px] text-slate-400 font-bold">
-                                {new Date(r.created_at).toLocaleDateString('th-TH')}
-                              </span>
-                            </div>
-                          </div>
+                      <Popup>
+                        <div className="text-xs">
+                          <b className="text-indigo-700">{r.patient_name}</b><br/>
+                          {r.complication_status}
                         </div>
                       </Popup>
                     </Marker>
                   ))}
-
                 </MapContainer>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm p-4 h-[450px] flex flex-col border border-slate-100">
-              <div className="flex justify-between items-center mb-4 px-2">
-                <h4 className="font-bold text-[#2B3674] text-sm flex items-center gap-2">📝 กิจกรรมล่าสุด</h4>
-                <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg font-bold">อัปเดตเรียลไทม์</span>
-              </div>
-              <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
-                {filteredReports.slice(0, 10).map((r) => (
-                  <div 
-                    key={r.id} 
-                    onClick={() => focusOnMap(r.latitude, r.longitude)}
-                    className={`p-3 rounded-xl border flex gap-3 items-center transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${r.complication_status === 'ผิดปกติ' ? 'bg-red-50/30 border-red-100 hover:border-red-300' : 'bg-slate-50 border-slate-100 hover:border-blue-300'}`}
-                  >
-                    {r.image_url ? (
-                      <img src={r.image_url} className="w-12 h-12 rounded-lg object-cover shadow-sm border border-slate-200" />
-                    ) : (
-                      <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-[10px] text-slate-300 shadow-sm border border-slate-200">No Img</div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-[#2B3674] text-sm truncate">{r.patient_name}</p>
-                      <p className="text-[10px] text-slate-500 truncate mt-0.5">{r.activities}</p>
-                      <p className="text-[9px] text-slate-400 mt-1">🕒 {new Date(r.created_at).toLocaleString('th-TH')}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className={`px-2 py-1 rounded-md text-[9px] font-bold ${r.complication_status === 'ผิดปกติ' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                        {r.complication_status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {filteredReports.length === 0 && (
-                  <div className="text-center text-slate-400 text-sm py-10 font-medium">ยังไม่มีข้อมูลการเยี่ยมบ้าน</div>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm p-6 h-[450px] flex flex-col gap-6 border border-slate-100">
+            <div className="bg-white rounded-2xl shadow-sm p-6 h-[450px] flex flex-col border border-slate-100">
+              <h4 className="font-bold text-[#2B3674] text-xs text-center mb-6">ความถี่การเยี่ยม (5 ลำดับแรก)</h4>
               <div className="flex-1">
-                <h4 className="font-bold text-[#2B3674] text-xs text-center mb-4">สถิติความถี่การเยี่ยม (คน)</h4>
-                <ResponsiveContainer width="100%" height="80%">
-                  <BarChart data={barData} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
+                <ResponsiveContainer width="100%" height="90%">
+                  <BarChart data={barData} layout="vertical">
                     <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 10, fill: '#707EAE' }} axisLine={false} tickLine={false} />
-                    <ChartTooltip cursor={{ fill: '#F4F7FE' }} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                    <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <ChartTooltip cursor={{ fill: '#F4F7FE' }} />
                     <Bar dataKey="เยี่ยม" fill="#4318FF" radius={[0, 4, 4, 0]} barSize={12} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <div className="flex-1 border-t border-slate-100 pt-4">
-                <h4 className="font-bold text-[#2B3674] text-xs text-center mb-2">สัดส่วนสถานะการประเมิน</h4>
-                <div className="flex items-center justify-center h-[100px]">
-                  <ResponsiveContainer width="50%" height="100%">
-                    <PieChart>
-                      <Pie data={pieData} innerRadius={30} outerRadius={45} paddingAngle={5} dataKey="value" stroke="none">
-                        {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                      </Pie>
-                      <ChartTooltip contentStyle={{ borderRadius: '10px', fontSize: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="w-1/2 flex flex-col gap-2 pl-4">
-                    <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium"><div className="w-2.5 h-2.5 rounded-sm bg-[#05CD99]"></div> ปกติ ({normal})</div>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium"><div className="w-2.5 h-2.5 rounded-sm bg-[#FFB547]"></div> ผิดปกติ ({abnormal})</div>
-                  </div>
-                </div>
-              </div>
             </div>
-
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
-            <div className="flex flex-wrap md:flex-nowrap gap-4 mb-6">
+          {/* --- Table Section --- */}
+          <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 mb-8">
+            <div className="flex flex-wrap md:flex-nowrap gap-4 mb-6 items-center">
               <input type="text" placeholder="ค้นหาชื่อ..." className="input input-bordered bg-slate-50 h-10 text-sm flex-1" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-              <select className="select select-bordered bg-slate-50 h-10 text-sm w-32" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <select className="select select-bordered bg-slate-50 h-10 text-sm w-36" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                 <option value="ทั้งหมด">สถานะทั้งหมด</option><option value="ปกติ">ปกติ</option><option value="ผิดปกติ">ผิดปกติ</option>
               </select>
-              <input type="date" className="input input-bordered bg-slate-50 h-10 text-sm w-40" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
-              <button onClick={() => {setSearchTerm(''); setStatusFilter('ทั้งหมด'); setDateFilter('');}} className="btn btn-ghost h-10 text-slate-500">ล้าง</button>
-              <button onClick={exportToExcelWithImages} className="btn bg-[#05CD99] text-white border-none h-10 hover:bg-[#04b386]">📗 Excel</button>
+              
+              {/* --- จุดที่ 2: Rows Per Page Selector --- */}
+              <select className="select select-bordered bg-slate-50 h-10 text-sm w-32" value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))}>
+                <option value={10}>หน้าละ 10</option>
+                <option value={20}>หน้าละ 20</option>
+                <option value={50}>หน้าละ 50</option>
+              </select>
+
+              <button onClick={exportToExcelWithImages} className="btn bg-[#05CD99] text-white border-none h-10">📗 Excel</button>
             </div>
 
             <div className="overflow-x-auto">
               <table className="table w-full">
                 <thead className="text-[11px] uppercase font-bold text-slate-400 bg-slate-50">
                   <tr>
-                    <th className="rounded-l-lg p-3">รูปภาพ</th>
+                    <th className="rounded-l-lg p-4">รูปภาพ</th>
                     <th>ชื่อผู้สูงอายุ</th>
-                    <th>วันที่ส่ง</th>
-                    <th className="text-center">แผนที่</th>
+                    <th>วันที่เยี่ยม</th>
+                    <th className="text-center">พิกัด</th>
                     <th className="text-center">สถานะ</th>
                     <th className="text-right rounded-r-lg">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm">
-                  {filteredReports.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-50/50 border-b border-slate-50">
-                      <td className="p-3">
-                        {r.image_url ? <img src={r.image_url} onClick={() => showFullImage(r.image_url)} className="w-10 h-10 object-cover rounded-lg cursor-pointer border border-slate-200 hover:scale-110 transition-transform" /> : '-'}
+                  {currentItems.map((r) => (
+                    <tr key={r.id} className={`hover:bg-slate-50/50 border-b border-slate-50 transition-colors ${highlightedId === r.id ? 'row-active' : ''}`}>
+                      <td className="p-4">
+                        {r.image_url ? <img src={r.image_url} onClick={() => showFullImage(r.image_url)} className="w-10 h-10 object-cover rounded-lg cursor-pointer border border-slate-200" /> : '-'}
                       </td>
-                      <td className="p-3 font-medium text-[#2B3674]">{r.patient_name}</td>
-                      <td className="p-3 text-slate-500 text-xs">{new Date(r.created_at).toLocaleDateString('th-TH')}</td>
-                      
-                      <td className="p-3 text-center">
-                        <button 
-                          onClick={() => focusOnMap(r.latitude, r.longitude)} 
-                          className="btn btn-ghost btn-xs text-[#4318FF] bg-blue-50 hover:bg-blue-100 rounded-md font-bold px-3 transition-transform active:scale-95"
-                        >
-                          📍 ซูมดู
-                        </button>
+                      <td className="p-4 font-bold text-[#2B3674]">{r.patient_name}</td>
+                      <td className="p-4 text-slate-500 text-xs">{new Date(r.created_at).toLocaleDateString('th-TH')}</td>
+                      <td className="p-4 text-center">
+                        <button onClick={() => focusOnMap(r.latitude, r.longitude, r.id)} className="btn btn-ghost btn-xs text-[#4318FF] bg-blue-50 px-3">📍 ซูมดู</button>
                       </td>
-
-                      <td className="p-3 text-center">
+                      <td className="p-4 text-center">
                         <span className={`px-3 py-1 rounded-md text-[10px] font-bold ${r.complication_status === 'ผิดปกติ' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
                           {r.complication_status}
                         </span>
                       </td>
-                      <td className="p-3 text-right">
-                        <button onClick={() => handleDelete(r.id)} className="text-slate-400 hover:text-red-500 p-2">🗑️</button>
+                      <td className="p-4 text-right flex justify-end gap-2">
+                        {/* --- จุดที่ 1: Detail Modal Trigger --- */}
+                        <button onClick={() => setSelectedReport(r)} className="text-indigo-500 hover:bg-indigo-50 p-2 rounded-lg text-xs font-bold">📄 รายละเอียด</button>
+                        <button onClick={() => handleDelete(r.id)} className="text-red-400 hover:bg-red-50 p-2 rounded-lg">🗑️</button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            <div className="mt-6 flex flex-col md:flex-row items-center justify-between gap-4 border-t pt-4">
+              <span className="text-xs text-slate-400 font-medium">
+                รายการ {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filteredReports.length)} จากทั้งหมด {filteredReports.length}
+              </span>
+              <div className="flex gap-1">
+                <button 
+                  disabled={currentPage === 1} 
+                  onClick={() => setCurrentPage(prev => prev - 1)}
+                  className="px-4 py-2 text-xs font-bold rounded-lg border border-slate-200 disabled:opacity-20"
+                >
+                  ย้อนกลับ
+                </button>
+                <div className="flex gap-1 items-center px-4 font-bold text-[#2B3674] text-xs">
+                  หน้า {currentPage} จาก {totalPages || 1}
+                </div>
+                <button 
+                  disabled={currentPage === totalPages || totalPages === 0} 
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                  className="px-4 py-2 text-xs font-bold rounded-lg border border-slate-200 disabled:opacity-20"
+                >
+                  ถัดไป
+                </button>
+              </div>
+            </div>
           </div>
-          
         </main>
       </div>
+
+      {/* --- จุดที่ 1: Detail Modal --- */}
+      {selectedReport && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl relative animate-in zoom-in duration-200">
+            <button onClick={() => setSelectedReport(null)} className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/20 hover:bg-white/50 backdrop-blur-md rounded-full text-white font-bold">✕</button>
+            
+            <div className="relative h-56 bg-slate-200">
+              {selectedReport.image_url ? (
+                <img src={selectedReport.image_url} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold">ไม่มีรูปถ่าย</div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+              <div className="absolute bottom-6 left-8 text-white">
+                <h2 className="text-3xl font-bold">{selectedReport.patient_name}</h2>
+                <p className="text-sm opacity-80">เยี่ยมบ้านเมื่อ: {new Date(selectedReport.created_at).toLocaleString('th-TH')}</p>
+              </div>
+            </div>
+
+            <div className="p-8 space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="bg-slate-50 p-4 rounded-2xl">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mb-2">กิจกรรมการดูแล</p>
+                  <p className="text-sm font-medium text-[#2B3674] leading-relaxed">{selectedReport.activities}</p>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mb-2">พิกัด GPS</p>
+                  <p className="text-sm font-medium text-[#2B3674]">{selectedReport.latitude?.toFixed(5)}, {selectedReport.longitude?.toFixed(5)}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase mb-2">ประเมินสถานะ</p>
+                <span className={`px-4 py-2 rounded-xl text-xs font-bold ${selectedReport.complication_status === 'ผิดปกติ' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                  {selectedReport.complication_status}
+                </span>
+                
+                {selectedReport.complication_status === 'ผิดปกติ' && (
+                  <div className="mt-4 bg-red-50 p-4 rounded-2xl border border-red-100">
+                    <p className="text-[10px] text-red-400 font-bold uppercase mb-1">รายละเอียดความผิดปกติที่พบ</p>
+                    <p className="text-sm font-medium text-red-700">{selectedReport.complication_detail || 'ไม่ได้ระบุรายละเอียด'}</p>
+                  </div>
+                )}
+              </div>
+
+              <button onClick={() => setSelectedReport(null)} className="w-full py-4 bg-[#4318FF] text-white font-bold rounded-2xl hover:bg-[#3311db] transition-colors">ปิดหน้าต่าง</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
